@@ -1,0 +1,54 @@
+.overview-page > .overview-create-row {
+  grid-column: 1 / -1;
+  grid-row: 1;
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+}
+
+.overview-create-row button {
+  border: 0;
+  border-radius: 10px;
+  background: #282c3a;
+  color: #fff;
+  padding: 10px 15px;
+  font-size: 12px;
+  font-weight: 800;
+  box-shadow: 0 7px 18px rgba(40, 44, 58, .14);
+}
+
+.overview-page > .member-panel {
+  grid-column: 1;
+  grid-row: 2;
+}
+
+.overview-page > .focus-panel {
+  grid-column: 2;
+  grid-row: 2;
+}
+
+.overview-page > .activity-panel {
+  grid-column: 3;
+  grid-row: 2;
+}
+
+@media (max-width: 1050px) {
+  .overview-page > .activity-panel {
+    grid-column: 1 / -1;
+    grid-row: 3;
+  }
+}
+
+@media (max-width: 700px) {
+  .overview-page > .overview-create-row {
+    display: flex;
+    margin: 0 0 12px;
+  }
+
+  .overview-page > .member-panel,
+  .overview-page > .focus-panel,
+  .overview-page > .activity-panel {
+    grid-column: auto;
+    grid-row: auto;
+  }
+}

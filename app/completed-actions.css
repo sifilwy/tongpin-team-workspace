@@ -1,0 +1,21 @@
+.completed-task-head > div {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.completed-task-head button {
+  padding: 5px 9px;
+  border: 1px solid #ded9f5;
+  border-radius: 7px;
+  background: #f7f5ff;
+  color: #6658d8;
+  font-size: 9px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.completed-task-head button:hover {
+  border-color: #a99eed;
+  background: #efecff;
+}

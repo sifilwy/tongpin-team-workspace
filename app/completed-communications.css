@@ -1,0 +1,196 @@
+.completed-workspace {
+  max-width: 1380px;
+}
+
+.completed-body {
+  margin-top: 18px;
+}
+
+.completed-body .completed-list {
+  margin-top: 0;
+}
+
+.completed-body.has-communication {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 340px;
+  align-items: start;
+  gap: 14px;
+}
+
+.completed-task-card.selected {
+  border-color: #aaa0ef;
+  box-shadow: 0 0 0 3px rgba(108, 92, 231, .08);
+}
+
+.completed-task-open {
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #252938;
+  font-size: 13px;
+  font-weight: 800;
+  text-align: left;
+}
+
+.completed-task-open:hover {
+  color: #6254d5;
+}
+
+.completed-by {
+  color: #656b79;
+  font-size: 9px;
+  white-space: nowrap;
+}
+
+.completed-communication-panel {
+  position: sticky;
+  top: 90px;
+  display: flex;
+  flex-direction: column;
+  max-height: calc(100vh - 120px);
+  padding: 17px;
+  border: 1px solid #e5e1da;
+  border-radius: 15px;
+  background: #fff;
+  box-shadow: 0 12px 34px rgba(37, 32, 25, .07);
+}
+
+.completed-communication-panel > header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid #ece9e3;
+}
+
+.completed-communication-panel > header span,
+.completed-communication-panel > header strong,
+.completed-communication-panel > header small {
+  display: block;
+}
+
+.completed-communication-panel > header span {
+  color: #6c5ce7;
+  font-size: 9px;
+  font-weight: 800;
+}
+
+.completed-communication-panel > header strong {
+  margin-top: 6px;
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.completed-communication-panel > header small {
+  margin-top: 6px;
+  color: #9296a2;
+  font-size: 9px;
+}
+
+.completed-communication-panel > header button {
+  width: 27px;
+  height: 27px;
+  border: 0;
+  border-radius: 8px;
+  background: #f2f1ee;
+  color: #7c808c;
+  font-size: 18px;
+}
+
+.completed-communication-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 5px 0;
+}
+
+.completed-notion-link {
+  margin: 12px 0 4px;
+  padding: 9px 11px;
+  border-radius: 9px;
+  background: #f2f0ff;
+  color: #6254d5;
+  font-size: 9px;
+  font-weight: 800;
+  text-align: center;
+  text-decoration: none;
+}
+.completed-notion-link{font-size:0}
+.completed-notion-link:after{content:"打开协作区 ↗";font-size:12px}
+
+.completed-communication-list article {
+  padding: 12px 2px;
+  border-bottom: 1px solid #efede8;
+}
+
+.completed-communication-list article > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.completed-communication-list article strong {
+  font-size: 10px;
+}
+
+.completed-communication-list article time {
+  color: #9a9da6;
+  font-size: 8px;
+}
+
+.completed-communication-list article p {
+  margin: 7px 0 0;
+  color: #5c6271;
+  font-size: 10px;
+  line-height: 1.6;
+}
+
+.communication-empty {
+  margin: 24px 0;
+  color: #a2a5ad;
+  font-size: 10px;
+  text-align: center;
+}
+
+.completed-communication-form {
+  display: grid;
+  grid-template-columns: 92px 1fr 54px;
+  gap: 7px;
+  padding-top: 13px;
+  border-top: 1px solid #ece9e3;
+}
+
+.completed-communication-form select,
+.completed-communication-form textarea {
+  border: 1px solid #dedad3;
+  border-radius: 8px;
+  background: #faf9f7;
+  padding: 8px;
+  font-size: 9px;
+}
+
+.completed-communication-form textarea {
+  min-height: 55px;
+  resize: vertical;
+}
+
+.completed-communication-form button {
+  border: 0;
+  border-radius: 8px;
+  background: #6c5ce7;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 800;
+}
+
+@media (max-width: 900px) {
+  .completed-body.has-communication {
+    grid-template-columns: 1fr;
+  }
+
+  .completed-communication-panel {
+    position: static;
+    max-height: none;
+  }
+}

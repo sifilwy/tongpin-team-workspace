@@ -1,0 +1,16 @@
+.task-context-menu > button.menu-danger {
+  margin-top: 3px;
+  border-top: 1px solid #efede8;
+  border-radius: 0 0 8px 8px;
+  color: #b64949;
+}
+
+.task-context-menu > button.menu-danger:hover {
+  background: #fff1f1;
+  color: #a83e3e;
+}
+
+.task-context-menu > button.menu-danger b {
+  background: #ffeded;
+  color: #c44e4e;
+}

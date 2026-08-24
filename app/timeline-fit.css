@@ -1,0 +1,66 @@
+@media (min-width: 1051px) {
+  .timeline-page {
+    grid-template-columns: 220px minmax(0, 1fr) 280px;
+    overflow: hidden;
+  }
+
+  .task-library,
+  .task-detail {
+    padding: 18px;
+  }
+
+  .week-board {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    padding: 18px;
+    overflow-x: hidden;
+    overflow-y: auto;
+  }
+
+  .week-toolbar {
+    flex: 0 0 auto;
+  }
+
+  .days-grid {
+    width: 100%;
+    min-width: 0;
+    min-height: calc(100vh - 158px);
+    flex: 0 0 auto;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+  }
+
+  .day-column {
+    min-width: 0;
+    min-height: calc(100vh - 158px);
+    overflow: visible;
+  }
+}
+
+.day-column > header span {
+  font-size: 12px;
+}
+
+.day-column > header b {
+  width: 28px;
+  height: 28px;
+  font-size: 14px;
+}
+
+.calendar-card {
+  min-height: 80px;
+  padding: 11px;
+}
+
+.calendar-card.completed {
+  cursor: grab;
+}
+
+.calendar-card strong {
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.calendar-card small {
+  font-size: 11px;
+}

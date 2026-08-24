@@ -1,0 +1,158 @@
+.week-toolbar {
+  margin-bottom: 14px;
+  padding: 2px 1px;
+}
+
+.week-board {
+  position: relative;
+}
+
+.library-section {
+  min-height: 54px;
+  margin-inline: -7px;
+  padding: 7px;
+  border: 1px solid transparent;
+  border-radius: 11px;
+  transition: background-color .16s, border-color .16s, box-shadow .16s;
+}
+
+.library-section.is-drop-target {
+  border-color: rgba(108, 92, 231, .36);
+  background: #f4f2ff;
+  box-shadow: inset 0 0 0 2px rgba(108, 92, 231, .08);
+}
+
+.week-edge {
+  position: absolute;
+  z-index: 8;
+  top: 82px;
+  bottom: 22px;
+  width: 34px;
+  background: transparent;
+}
+
+.week-edge-prev {
+  left: 25px;
+}
+
+.week-edge-next {
+  right: 25px;
+}
+
+.week-title strong {
+  color: #202432;
+  font-size: 20px;
+  letter-spacing: -.02em;
+}
+
+.week-title span {
+  margin-top: 5px;
+  color: #8a8e9c;
+  font-size: 10px;
+}
+
+.week-actions,
+.week-switcher {
+  display: flex;
+  align-items: center;
+}
+
+.week-actions {
+  gap: 9px;
+}
+
+.week-switcher {
+  overflow: hidden;
+  border: 1px solid #e1ded8;
+  border-radius: 9px;
+  background: #fff;
+}
+
+.week-toolbar .week-switcher button {
+  min-width: 35px;
+  border: 0;
+  border-right: 1px solid #ebe8e2;
+  border-radius: 0;
+  background: transparent;
+  padding: 8px 10px;
+  font-size: 14px;
+}
+
+.week-toolbar .week-switcher button:last-child {
+  border-right: 0;
+}
+
+.week-toolbar .week-switcher .week-current {
+  min-width: 51px;
+  color: #343846;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.week-toolbar .week-add {
+  border-color: #6c5ce7;
+  background: #6c5ce7;
+  color: #fff;
+  padding: 8px 13px;
+  font-weight: 800;
+  box-shadow: 0 6px 16px rgba(108, 92, 231, .18);
+}
+
+.days-grid {
+  border-radius: 12px;
+}
+
+.day-column {
+  padding: 0 9px 12px;
+}
+
+.day-column > header {
+  min-height: 58px;
+  margin: 0 -9px 12px;
+  padding: 8px 10px;
+  border-bottom: 1px solid #ece9e3;
+  align-items: flex-start;
+}
+
+.day-column > header span {
+  padding-top: 4px;
+  color: #797e8d;
+  font-weight: 700;
+}
+
+.day-column > header b {
+  font-size: 13px;
+}
+
+.calendar-card.completed,
+.calendar-card.completed.销售,
+.calendar-card.completed.交付 {
+  border-color: #d9d9d7;
+  border-left-color: #aaaeb6;
+  background: #efefed;
+  color: #858891;
+  cursor: default;
+  box-shadow: none;
+}
+
+.calendar-card.completed strong {
+  color: #777a82;
+  text-decoration: line-through;
+  text-decoration-color: #b7b8bc;
+}
+
+.calendar-card.completed small {
+  color: #a0a2a8;
+}
+
+@media (max-width: 700px) {
+  .week-toolbar {
+    align-items: flex-start;
+    gap: 12px;
+  }
+
+  .week-actions {
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+}

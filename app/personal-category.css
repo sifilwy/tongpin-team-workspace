@@ -1,0 +1,12 @@
+.personal-task>em{
+  grid-column:2;
+  justify-self:start;
+  padding:2px 5px;
+  border-radius:5px;
+  background:#f0eefc;
+  color:#7166bd;
+  font-size:7px;
+  font-style:normal;
+  font-weight:700;
+  text-decoration:none;
+}
