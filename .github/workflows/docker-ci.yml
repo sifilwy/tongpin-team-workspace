@@ -23,3 +23,14 @@ jobs:
       - uses: actions/checkout@v4
       - name: Build production image
         run: docker build --tag tongpin-team-workspace:ci .
+      - name: Start and verify production container
+        run: |
+          docker run -d --name tongpin-ci -p 127.0.0.1:4200:4200 tongpin-team-workspace:ci
+          for attempt in $(seq 1 20); do
+            if curl --fail --silent --show-error --head http://127.0.0.1:4200; then
+              exit 0
+            fi
+            sleep 1
+          done
+          docker logs tongpin-ci
+          exit 1
