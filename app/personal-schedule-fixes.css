@@ -36,8 +36,12 @@
 .personal-pending-list>button small{color:#8b8f9b;font-size:8px}
 .personal-pending-list>button.dragging{opacity:.35}
 .personal-pending-list>button.insert-before:before{content:"";position:absolute;left:3px;right:3px;top:-6px;height:3px;border-radius:3px;background:#6c5ce7}
-.personal-categories button[data-personal-category]{transition:background .14s,color .14s,box-shadow .14s,transform .14s}
-.personal-categories button[data-personal-category].is-over{background:#e7e2ff;color:#5545d5;box-shadow:inset 0 0 0 1px #c9c0ff;transform:translateX(2px)}
+.personal-category-row{display:grid;grid-template-columns:minmax(0,1fr) 26px;gap:3px;border-radius:8px;transition:background .14s,box-shadow .14s,transform .14s}
+.personal-category-row>button:first-child{min-width:0}
+.personal-category-row.is-over{background:#e7e2ff;box-shadow:inset 0 0 0 1px #c9c0ff;transform:translateX(2px)}
+.personal-category-rename{justify-content:center!important;padding:0!important;opacity:0;color:#8178bd!important;transition:opacity .14s,background .14s!important}
+.personal-category-row:hover .personal-category-rename,.personal-category-rename:focus-visible{opacity:1}
+.personal-category-rename:hover{background:#e9e5ff!important;color:#5545d5!important}
 .personal-category-form{display:grid;grid-template-columns:minmax(0,1fr) 28px 28px;gap:4px;margin-top:3px}
 .personal-category-form input{min-width:0;padding:7px 8px;border:1px solid #dcd6ff;border-radius:7px;background:#fff;color:#343746;font-size:10px;outline:0}
 .personal-category-form input:focus{border-color:#8a7cf0;box-shadow:0 0 0 2px rgba(108,92,231,.1)}

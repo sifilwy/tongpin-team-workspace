@@ -50,6 +50,8 @@ export default function PersonalSchedule() {
   const [pendingOpen, setPendingOpen] = useState<Record<Owner, boolean>>({ xzx: true, czl: true });
   const [addingCategory, setAddingCategory] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState("");
+  const [renamingCategory, setRenamingCategory] = useState<string | null>(null);
+  const [categoryDraft, setCategoryDraft] = useState("");
   const [dragPreview, setDragPreview] = useState<{ due: string; startTime: string } | null>(null);
   const dragPreviewRef = useRef<{ due: string; startTime: string } | null>(null);
   const edgeHover = useRef<{ direction: -1 | 0 | 1; since: number }>({ direction: 0, since: 0 });
@@ -108,6 +110,23 @@ export default function PersonalSchedule() {
     setCategory(value);
     setNewCategoryName("");
     setAddingCategory(false);
+  }
+
+  function renameCategory(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!renamingCategory) return;
+    const value = categoryDraft.trim();
+    if (!value) return;
+    if (value !== renamingCategory && categories[owner].includes(value)) {
+      window.alert("已经有这个分类了");
+      return;
+    }
+    const previous = renamingCategory;
+    setCategories((current) => ({ ...current, [owner]: current[owner].map((item) => item === previous ? value : item) }));
+    setTasks((current) => current.map((task) => task.owner === owner && task.category === previous ? { ...task, category: value } : task));
+    if (category === previous) setCategory(value);
+    setRenamingCategory(null);
+    setCategoryDraft("");
   }
 
   function openNew(defaults: { due: string | null; owner: Owner }) {
@@ -269,6 +288,8 @@ export default function PersonalSchedule() {
     setCategory("全部");
     setAddingCategory(false);
     setNewCategoryName("");
+    setRenamingCategory(null);
+    setCategoryDraft("");
   }
 
   function openMenu(event: MouseEvent, id: number) {
@@ -280,7 +301,11 @@ export default function PersonalSchedule() {
     <aside className="personal-sidebar">
       <div className="personal-segment">{PEOPLE.map((person) => <button key={person.name} className={owner === person.name && !allView ? "active" : ""} onClick={() => selectPerson(person.name)}>{person.name}</button>)}</div>
         <div className="personal-side-title"><div><strong>{owner} 的待办</strong><span>拖到右侧日期即可安排</span></div><button onClick={() => openNew({ owner, due: null })}>＋</button></div>
-        <div className="personal-categories"><button className={category === "全部" ? "active" : ""} onClick={() => setCategory("全部")}><span>全部</span><b>{tasks.filter((task) => task.owner === owner && task.due === null && !task.done).length}</b></button>{categories[owner].map((item) => <button data-personal-category={item} className={`${category === item ? "active" : ""} ${dropKey === `category-${item}` ? "is-over" : ""}`} key={item} onClick={() => setCategory(item)}><span>{item}</span><b>{tasks.filter((task) => task.owner === owner && task.category === item && task.due === null && !task.done).length}</b></button>)}{addingCategory ? <form className="personal-category-form" onSubmit={addCategory}><input autoFocus aria-label="新分类名称" value={newCategoryName} onChange={(event) => setNewCategoryName(event.target.value)} placeholder="分类名称" /><button aria-label="保存分类">✓</button><button type="button" aria-label="取消新增分类" onClick={() => { setAddingCategory(false); setNewCategoryName(""); }}>×</button></form> : <button className="add-category" onClick={() => setAddingCategory(true)}>＋ 新增分类</button>}</div>
+        <div className="personal-categories">
+          <button className={category === "全部" ? "active" : ""} onClick={() => setCategory("全部")}><span>全部</span><b>{tasks.filter((task) => task.owner === owner && !task.done).length}</b></button>
+          {categories[owner].map((item) => renamingCategory === item ? <form className="personal-category-form" key={item} onSubmit={renameCategory}><input autoFocus aria-label="修改分类名称" value={categoryDraft} onChange={(event) => setCategoryDraft(event.target.value)} onFocus={(event) => event.currentTarget.select()} /><button aria-label="保存分类名称">✓</button><button type="button" aria-label="取消修改分类" onClick={() => { setRenamingCategory(null); setCategoryDraft(""); }}>×</button></form> : <div data-personal-category={item} className={`personal-category-row ${dropKey === `category-${item}` ? "is-over" : ""}`} key={item}><button className={category === item ? "active" : ""} onClick={() => setCategory(item)}><span>{item}</span><b>{tasks.filter((task) => task.owner === owner && task.category === item && !task.done).length}</b></button><button className="personal-category-rename" title="修改分类名称" aria-label={`修改${item}分类名称`} onClick={() => { setAddingCategory(false); setRenamingCategory(item); setCategoryDraft(item); }}>✎</button></div>)}
+          {addingCategory ? <form className="personal-category-form" onSubmit={addCategory}><input autoFocus aria-label="新分类名称" value={newCategoryName} onChange={(event) => setNewCategoryName(event.target.value)} placeholder="分类名称" /><button aria-label="保存分类">✓</button><button type="button" aria-label="取消新增分类" onClick={() => { setAddingCategory(false); setNewCategoryName(""); }}>×</button></form> : <button className="add-category" onClick={() => { setRenamingCategory(null); setCategoryDraft(""); setAddingCategory(true); }}>＋ 新增分类</button>}
+        </div>
         <div className={`personal-pending ${dropKey === "pending" ? "is-over" : ""}`}>
           <button className="personal-pending-toggle" aria-expanded={pendingOpen[owner]} onClick={() => setPendingOpen((current) => ({ ...current, [owner]: !current[owner] }))}><span><i>{pendingOpen[owner] ? "⌄" : "›"}</i>未安排</span><b>{pending.length}</b></button>
           {pendingOpen[owner] && <div className="personal-pending-list">{pending.map((task) => <button key={task.id} data-pending-id={task.id} draggable={false} className={`${dragId === task.id ? "dragging" : ""} ${dropKey === `pending-${task.id}` ? "insert-before" : ""}`} onPointerDown={(event) => startPointerDrag(event, task.id)} onClick={() => clickTask(task)} onContextMenu={(event) => openMenu(event, task.id)}><strong>{task.title}</strong><small>{task.category}</small></button>)}{pending.length === 0 && <p>没有未安排任务</p>}</div>}
