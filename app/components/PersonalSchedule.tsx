@@ -20,7 +20,8 @@ const PEOPLE: { name: Owner; color: string }[] = [
   { name: "xzx", color: "#d99b39" },
   { name: "czl", color: "#2f9b8f" },
 ];
-const TASK_KEY = "tongpin-personal-tasks-v2";
+const TASK_KEY = "tongpin-personal-tasks-v3";
+const LEGACY_TASK_KEY = "tongpin-personal-tasks-v2";
 const CATEGORY_KEY = "tongpin-personal-categories-v2";
 const DAY_START = 7 * 60;
 const DAY_END = 22 * 60;
@@ -32,6 +33,9 @@ const starterTasks: PersonalTask[] = [
   { id: 901, title: "整理今日咨询记录", owner: "xzx", due: iso(new Date()), done: false, category: "独立", note: "", startTime: "09:00", endTime: "10:00" },
   { id: 902, title: "整理个人待办", owner: "xzx", due: null, done: false, category: "独立", note: "", startTime: "09:00", endTime: "10:00" },
   { id: 903, title: "确认客户跟进清单", owner: "czl", due: iso(new Date()), done: false, category: "独立", note: "", startTime: "09:00", endTime: "10:30" },
+  { id: 904, title: "跟进今日咨询反馈", owner: "xzx", due: iso(addDays(new Date(), 1)), done: false, category: "独立", note: "", startTime: "10:30", endTime: "11:30" },
+  { id: 905, title: "补充个人学习清单", owner: "xzx", due: null, done: false, category: "独立", note: "", startTime: "14:00", endTime: "15:00" },
+  { id: 906, title: "完成个人周报初稿", owner: "xzx", due: iso(new Date()), done: true, category: "独立", note: "", startTime: "15:30", endTime: "16:30" },
 ];
 
 export default function PersonalSchedule() {
@@ -39,7 +43,8 @@ export default function PersonalSchedule() {
   const [categories, setCategories] = useState<Record<Owner, string[]>>({ xzx: ["独立"], czl: ["独立"] });
   const [owner, setOwner] = useState<Owner>("xzx");
   const [allView, setAllView] = useState(false);
-  const [category, setCategory] = useState("全部");
+  const [completedView, setCompletedView] = useState(false);
+  const [openCategories, setOpenCategories] = useState<Record<Owner, string[]>>({ xzx: ["独立"], czl: ["独立"] });
   const [weekOffset, setWeekOffset] = useState(0);
   const [dragId, setDragId] = useState<number | null>(null);
   const [dropKey, setDropKey] = useState<string | null>(null);
@@ -47,7 +52,6 @@ export default function PersonalSchedule() {
   const [newDefaults, setNewDefaults] = useState<{ due: string | null; owner: Owner } | null>(null);
   const [modalOwner, setModalOwner] = useState<Owner>("xzx");
   const [menu, setMenu] = useState<{ id: number; x: number; y: number } | null>(null);
-  const [pendingOpen, setPendingOpen] = useState<Record<Owner, boolean>>({ xzx: true, czl: true });
   const [addingCategory, setAddingCategory] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState("");
   const [renamingCategory, setRenamingCategory] = useState<string | null>(null);
@@ -63,8 +67,14 @@ export default function PersonalSchedule() {
   useEffect(() => {
     try {
       const savedTasks = localStorage.getItem(TASK_KEY);
+      const legacyTasks = localStorage.getItem(LEGACY_TASK_KEY);
       const savedCategories = localStorage.getItem(CATEGORY_KEY);
-      if (savedTasks) setTasks((JSON.parse(savedTasks) as PersonalTask[]).map((task) => ({ ...task, startTime: task.startTime || "09:00", endTime: task.endTime || "10:00" })));
+      const sourceTasks = savedTasks || legacyTasks;
+      if (sourceTasks) {
+        const restored = (JSON.parse(sourceTasks) as PersonalTask[]).map((task) => ({ ...task, startTime: task.startTime || "09:00", endTime: task.endTime || "10:00" }));
+        const restoredIds = new Set(restored.map((task) => task.id));
+        setTasks(savedTasks ? restored : [...restored, ...starterTasks.filter((task) => !restoredIds.has(task.id))]);
+      }
       if (savedCategories) {
         const parsed = JSON.parse(savedCategories) as Partial<Record<Owner, string[]>>;
         setCategories({ xzx: parsed.xzx?.length ? parsed.xzx : ["独立"], czl: parsed.czl?.length ? parsed.czl : ["独立"] });
@@ -99,15 +109,15 @@ export default function PersonalSchedule() {
   const now = new Date();
   const weekStart = addDays(mondayOf(now), weekOffset * 7);
   const dates = Array.from({ length: 7 }, (_, index) => addDays(weekStart, index));
-  const filtered = useMemo(() => tasks.filter((task) => (allView || task.owner === owner) && (category === "全部" || task.category === category)), [allView, category, owner, tasks]);
-  const pending = tasks.filter((task) => task.owner === owner && task.due === null && !task.done && (category === "全部" || task.category === category));
+  const filtered = useMemo(() => tasks.filter((task) => allView || task.owner === owner), [allView, owner, tasks]);
+  const completedTasks = useMemo(() => tasks.filter((task) => task.done).sort((a, b) => (b.due || "").localeCompare(a.due || "")), [tasks]);
 
   function addCategory(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const value = newCategoryName.trim();
     if (!value || categories[owner].includes(value)) return;
     setCategories((current) => ({ ...current, [owner]: [...current[owner], value] }));
-    setCategory(value);
+    setOpenCategories((current) => ({ ...current, [owner]: [...new Set([...current[owner], value])] }));
     setNewCategoryName("");
     setAddingCategory(false);
   }
@@ -123,8 +133,8 @@ export default function PersonalSchedule() {
     }
     const previous = renamingCategory;
     setCategories((current) => ({ ...current, [owner]: current[owner].map((item) => item === previous ? value : item) }));
+    setOpenCategories((current) => ({ ...current, [owner]: current[owner].map((item) => item === previous ? value : item) }));
     setTasks((current) => current.map((task) => task.owner === owner && task.category === previous ? { ...task, category: value } : task));
-    if (category === previous) setCategory(value);
     setRenamingCategory(null);
     setCategoryDraft("");
   }
@@ -223,18 +233,19 @@ export default function PersonalSchedule() {
     const target = document.elementFromPoint(event.clientX, event.clientY) as HTMLElement | null;
     const track = target?.closest<HTMLElement>(".personal-day-track");
     if (track?.dataset.due) { pointerPreview(event.clientY, track, track.dataset.due); return; }
+    const statusTarget = target?.closest<HTMLElement>("[data-personal-status]");
+    if (statusTarget?.dataset.personalStatus && statusTarget.dataset.categoryName) {
+      const listItem = target?.closest<HTMLElement>("[data-pending-id]");
+      dragPreviewRef.current = null;
+      setDragPreview(null);
+      setDropKey(listItem ? `list-${listItem.dataset.pendingId}` : `status-${statusTarget.dataset.categoryName}-${statusTarget.dataset.personalStatus}`);
+      return;
+    }
     const categoryTarget = target?.closest<HTMLElement>("[data-personal-category]");
     if (categoryTarget?.dataset.personalCategory) {
       dragPreviewRef.current = null;
       setDragPreview(null);
       setDropKey(`category-${categoryTarget.dataset.personalCategory}`);
-      return;
-    }
-    if (target?.closest(".personal-pending")) {
-      const pendingItem = target.closest<HTMLElement>("[data-pending-id]");
-      dragPreviewRef.current = null;
-      setDragPreview(null);
-      setDropKey(pendingItem ? `pending-${pendingItem.dataset.pendingId}` : "pending");
       return;
     }
     dragPreviewRef.current = null;
@@ -248,12 +259,17 @@ export default function PersonalSchedule() {
     if (pointer.active) {
       const target = document.elementFromPoint(event.clientX, event.clientY) as HTMLElement | null;
       const track = target?.closest<HTMLElement>(".personal-day-track");
-      const pendingTarget = target?.closest<HTMLElement>("[data-pending-id]");
+      const listTarget = target?.closest<HTMLElement>("[data-pending-id]");
+      const statusTarget = target?.closest<HTMLElement>("[data-personal-status]");
       const categoryTarget = target?.closest<HTMLElement>("[data-personal-category]");
       const preview = dragPreviewRef.current;
       if (track?.dataset.due && preview?.due === track.dataset.due) scheduleTaskAt(pointer.id, preview.due, preview.startTime);
+      else if (statusTarget?.dataset.personalStatus && statusTarget.dataset.categoryName) {
+        const moving = tasks.find((task) => task.id === pointer.id);
+        const pendingStatus = statusTarget.dataset.personalStatus === "pending";
+        moveTask(pointer.id, { owner, category: statusTarget.dataset.categoryName, due: pendingStatus ? null : moving?.due || iso(now), done: false }, listTarget ? Number(listTarget.dataset.pendingId) : undefined);
+      }
       else if (categoryTarget?.dataset.personalCategory) moveTask(pointer.id, { category: categoryTarget.dataset.personalCategory });
-      else if (target?.closest(".personal-pending")) moveTask(pointer.id, { due: null, owner, done: false }, pendingTarget ? Number(pendingTarget.dataset.pendingId) : undefined);
     }
     pointerDrag.current = null;
     endDrag();
@@ -285,11 +301,18 @@ export default function PersonalSchedule() {
   function selectPerson(nextOwner: Owner) {
     setOwner(nextOwner);
     setAllView(false);
-    setCategory("全部");
+    setCompletedView(false);
     setAddingCategory(false);
     setNewCategoryName("");
     setRenamingCategory(null);
     setCategoryDraft("");
+  }
+
+  function toggleCategory(item: string) {
+    setOpenCategories((current) => ({
+      ...current,
+      [owner]: current[owner].includes(item) ? current[owner].filter((name) => name !== item) : [...current[owner], item],
+    }));
   }
 
   function openMenu(event: MouseEvent, id: number) {
@@ -302,19 +325,29 @@ export default function PersonalSchedule() {
       <div className="personal-segment">{PEOPLE.map((person) => <button key={person.name} className={owner === person.name && !allView ? "active" : ""} onClick={() => selectPerson(person.name)}>{person.name}</button>)}</div>
         <div className="personal-side-title"><div><strong>{owner} 的待办</strong><span>拖到右侧日期即可安排</span></div><button onClick={() => openNew({ owner, due: null })}>＋</button></div>
         <div className="personal-categories">
-          <button className={category === "全部" ? "active" : ""} onClick={() => setCategory("全部")}><span>全部</span><b>{tasks.filter((task) => task.owner === owner && !task.done).length}</b></button>
-          {categories[owner].map((item) => renamingCategory === item ? <form className="personal-category-form" key={item} onSubmit={renameCategory}><input autoFocus aria-label="修改分类名称" value={categoryDraft} onChange={(event) => setCategoryDraft(event.target.value)} onFocus={(event) => event.currentTarget.select()} /><button aria-label="保存分类名称">✓</button><button type="button" aria-label="取消修改分类" onClick={() => { setRenamingCategory(null); setCategoryDraft(""); }}>×</button></form> : <div data-personal-category={item} className={`personal-category-row ${dropKey === `category-${item}` ? "is-over" : ""}`} key={item}><button className={category === item ? "active" : ""} onClick={() => setCategory(item)}><span>{item}</span><b>{tasks.filter((task) => task.owner === owner && task.category === item && !task.done).length}</b></button><button className="personal-category-rename" title="修改分类名称" aria-label={`修改${item}分类名称`} onClick={() => { setAddingCategory(false); setRenamingCategory(item); setCategoryDraft(item); }}>✎</button></div>)}
+          {categories[owner].map((item) => {
+            const categoryTasks = tasks.filter((task) => task.owner === owner && task.category === item && !task.done);
+            const pendingTasks = categoryTasks.filter((task) => task.due === null);
+            const activeTasks = categoryTasks.filter((task) => task.due !== null);
+            const opened = openCategories[owner].includes(item);
+            if (renamingCategory === item) return <form className="personal-category-form" key={item} onSubmit={renameCategory}><input autoFocus aria-label="修改分类名称" value={categoryDraft} onChange={(event) => setCategoryDraft(event.target.value)} onFocus={(event) => event.currentTarget.select()} /><button aria-label="保存分类名称">✓</button><button type="button" aria-label="取消修改分类" onClick={() => { setRenamingCategory(null); setCategoryDraft(""); }}>×</button></form>;
+            const renderTask = (task: PersonalTask, status: "pending" | "active") => <button key={task.id} data-pending-id={task.id} draggable={false} className={`${dragId === task.id ? "dragging" : ""} ${dropKey === `list-${task.id}` ? "insert-before" : ""}`} onPointerDown={(event) => startPointerDrag(event, task.id)} onClick={() => clickTask(task)} onContextMenu={(event) => openMenu(event, task.id)}><strong>{task.title}</strong><small>{status === "pending" ? "待安排" : `正在进行 · ${task.due?.slice(5).replace("-", "/")}`}</small></button>;
+            return <section className="personal-category-section" key={item}>
+              <div data-personal-category={item} className={`personal-category-row ${dropKey === `category-${item}` ? "is-over" : ""}`}><button className={opened ? "active" : ""} aria-expanded={opened} onClick={() => toggleCategory(item)}><i>{opened ? "⌄" : "›"}</i><span>{item}</span><b>{categoryTasks.length}</b></button><button className="personal-category-rename" title="修改分类名称" aria-label={`修改${item}分类名称`} onClick={() => { setAddingCategory(false); setRenamingCategory(item); setCategoryDraft(item); }}>✎</button></div>
+              {opened && <div className="personal-category-panel">
+                <div className={`personal-status-block ${dropKey === `status-${item}-pending` ? "is-over" : ""}`} data-personal-status="pending" data-category-name={item}><header><span>待安排</span><b>{pendingTasks.length}</b></header><div className="personal-pending-list">{pendingTasks.map((task) => renderTask(task, "pending"))}</div></div>
+                <div className={`personal-status-block ${dropKey === `status-${item}-active` ? "is-over" : ""}`} data-personal-status="active" data-category-name={item}><header><span>正在进行</span><b>{activeTasks.length}</b></header><div className="personal-pending-list">{activeTasks.map((task) => renderTask(task, "active"))}</div></div>
+              </div>}
+            </section>;
+          })}
           {addingCategory ? <form className="personal-category-form" onSubmit={addCategory}><input autoFocus aria-label="新分类名称" value={newCategoryName} onChange={(event) => setNewCategoryName(event.target.value)} placeholder="分类名称" /><button aria-label="保存分类">✓</button><button type="button" aria-label="取消新增分类" onClick={() => { setAddingCategory(false); setNewCategoryName(""); }}>×</button></form> : <button className="add-category" onClick={() => { setRenamingCategory(null); setCategoryDraft(""); setAddingCategory(true); }}>＋ 新增分类</button>}
-        </div>
-        <div className={`personal-pending ${dropKey === "pending" ? "is-over" : ""}`}>
-          <button className="personal-pending-toggle" aria-expanded={pendingOpen[owner]} onClick={() => setPendingOpen((current) => ({ ...current, [owner]: !current[owner] }))}><span><i>{pendingOpen[owner] ? "⌄" : "›"}</i>未安排</span><b>{pending.length}</b></button>
-          {pendingOpen[owner] && <div className="personal-pending-list">{pending.map((task) => <button key={task.id} data-pending-id={task.id} draggable={false} className={`${dragId === task.id ? "dragging" : ""} ${dropKey === `pending-${task.id}` ? "insert-before" : ""}`} onPointerDown={(event) => startPointerDrag(event, task.id)} onClick={() => clickTask(task)} onContextMenu={(event) => openMenu(event, task.id)}><strong>{task.title}</strong><small>{task.category}</small></button>)}{pending.length === 0 && <p>没有未安排任务</p>}</div>}
         </div>
     </aside>
 
     <main className="personal-main">
-      <header className="personal-topbar"><div><span>{allView ? "全部成员" : owner}</span><strong>{weekStart.getFullYear()}年{String(weekStart.getMonth() + 1).padStart(2, "0")}月</strong></div><div className="personal-top-actions"><button className={`all-view-button ${allView ? "active" : ""}`} onClick={() => { setAllView((value) => !value); setCategory("全部"); }}>{allView ? "返回我的日程" : "查看全员"}</button><button className="personal-create" onClick={() => openNew({ owner: allView ? "xzx" : owner, due: iso(now) })}>＋ 添加</button><div className="personal-week-switch"><button aria-label="上一周" onClick={() => setWeekOffset((value) => value - 1)}>‹</button><button onClick={() => setWeekOffset(0)}>本周</button><button aria-label="下一周" onClick={() => setWeekOffset((value) => value + 1)}>›</button></div></div></header>
+      <header className="personal-topbar"><div><span>{completedView ? "全部成员" : allView ? "全部成员" : owner}</span><strong>{completedView ? "已完成任务" : `${weekStart.getFullYear()}年${String(weekStart.getMonth() + 1).padStart(2, "0")}月`}</strong></div><div className="personal-top-actions"><button className={`all-view-button ${allView ? "active" : ""}`} onClick={() => { if (allView) { setAllView(false); setCompletedView(false); } else setAllView(true); }}>{allView ? "返回我的日程" : "查看全员"}</button>{allView && <button className={`personal-completed-button ${completedView ? "active" : ""}`} onClick={() => setCompletedView((value) => !value)}>已完成 <b>{completedTasks.length}</b></button>}<button className="personal-create" onClick={() => openNew({ owner: allView ? "xzx" : owner, due: iso(now) })}>＋ 添加</button>{!completedView && <div className="personal-week-switch"><button aria-label="上一周" onClick={() => setWeekOffset((value) => value - 1)}>‹</button><button onClick={() => setWeekOffset(0)}>本周</button><button aria-label="下一周" onClick={() => setWeekOffset((value) => value + 1)}>›</button></div>}</div></header>
 
+      {completedView ? <section className="personal-completed-view"><header><div><strong>全部已完成</strong><span>先集中放在这里，后续再细分</span></div><b>{completedTasks.length}</b></header><div className="personal-completed-grid">{completedTasks.map((task) => { const person = PEOPLE.find((item) => item.name === task.owner)!; return <button key={task.id} onClick={() => clickTask(task)} onContextMenu={(event) => openMenu(event, task.id)}><i style={{ background: person.color }}>{task.owner[0]}</i><span><strong>{task.title}</strong><small>{task.owner} · {task.category} · {task.due?.replaceAll("-", "/") || "未安排"}</small></span><em>已完成</em></button>; })}</div></section> : <>
       {dragId !== null && <><div className="personal-edge prev" /><div className="personal-edge next" /></>}
       <div className="personal-timeline-shell">
         <aside className="personal-time-axis"><header /><div>{HOURS.map((hour) => <span key={hour} style={{ top: `${((hour * 60 - DAY_START) / (DAY_END - DAY_START)) * 100}%` }}>{String(hour).padStart(2, "0")}:00</span>)}</div></aside>
@@ -335,7 +368,7 @@ export default function PersonalSchedule() {
             })}</div>
           </section>;
         })}</div>
-      </div>
+      </div></>}
     </main>
 
     {menu && (() => { const task = tasks.find((item) => item.id === menu.id); if (!task) return null; return <div className="personal-context" style={{ left: menu.x, top: menu.y }} onPointerDown={(event) => event.stopPropagation()}><strong>{task.title}</strong><button onClick={() => { setTasks((current) => current.map((item) => item.id === task.id ? { ...item, done: !item.done } : item)); setMenu(null); }}>{task.done ? "恢复未完成" : "标记完成"}</button><button onClick={() => { openEditor(task); setMenu(null); }}>修改任务</button>{task.due && <button onClick={() => { moveTask(task.id, { due: null, done: false }); setMenu(null); }}>移回待办</button>}<button className="danger" onClick={() => { if (window.confirm(`确认删除“${task.title}”？`)) setTasks((current) => current.filter((item) => item.id !== task.id)); setMenu(null); }}>删除任务</button></div>; })()}
