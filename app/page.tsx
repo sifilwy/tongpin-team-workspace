@@ -27,7 +27,8 @@ const optionalAmount = (value: FormDataEntryValue | null) => {
   return Number.isFinite(amount) && amount >= 0 ? Math.round(amount * 100) / 100 : undefined;
 };
 const addDays = (date: Date, days: number) => { const next = new Date(date); next.setDate(next.getDate() + days); return next; };
-const thisMonday = (() => { const d = new Date(today); const day = d.getDay() || 7; d.setDate(d.getDate() - day + 1); d.setHours(0, 0, 0, 0); return d; })();
+const mondayOf = (date: Date) => { const d = new Date(date); const day = d.getDay() || 7; d.setDate(d.getDate() - day + 1); d.setHours(0, 0, 0, 0); return d; };
+const thisMonday = mondayOf(today);
 const initialTasks: Task[] = [
   { id: 1, title: "确认本周咨询排期", owner: "悦悦", category: "运营", due: iso(addDays(thisMonday, 0)), status: "进行中", description: "确认老师与家庭双方时间，并把最终排期同步给团队。", reviews: [] },
   { id: 2, title: "整理家长常见问题", owner: "吃吃", category: "交付", due: iso(addDays(thisMonday, 1)), status: "进行中", description: "汇总本周新增问题，补充进标准回复资料。", reviews: [] },
@@ -42,6 +43,7 @@ const initialMessages: Message[] = [
 const emptyTask: Task = { id: 0, title: "暂无任务", owner: "待分配", category: "运营", due: iso(today), status: "待完成", description: "", reviews: [] };
 
 export default function Page() {
+  const currentNow = new Date();
   const [view, setView] = useState<View>("overview");
   const [tasks, setTasks] = useState<Task[]>(() => initialTasks.map((task) => ({ ...task, notionUrl: NOTION_COLLAB_URL })));
   const [messages, setMessages] = useState<Message[]>(initialMessages);
@@ -117,12 +119,12 @@ export default function Page() {
     return () => document.removeEventListener("click", openCompleted);
   }, [tasks]);
 
-  const selected = tasks.find((task) => task.id === selectedId) ?? tasks[0] ?? emptyTask;
+  const selected = tasks.find((task) => task.id === selectedId) ?? tasks[0] ?? { ...emptyTask, due: iso(currentNow) };
   const overviewSelected = tasks.find((task) => task.id === overviewTaskId) ?? null;
   const visible = useMemo(() => filter === "全部" ? tasks : tasks.filter((task) => libraryMode === "member" ? task.owner === filter : task.category === filter), [tasks, filter, libraryMode]);
   const overviewTasks = tasks.filter((task) => task.owner === overviewMember && task.status !== "已完成");
   const unassignedTasks = tasks.filter((task) => task.owner === "待分配" && task.status !== "已完成");
-  const weekStart = addDays(thisMonday, weekOffset * 7);
+  const weekStart = addDays(mondayOf(currentNow), weekOffset * 7);
   const weekDates = Array.from({ length: 7 }, (_, index) => addDays(weekStart, index));
   function updateTask(id: number, patch: Partial<Task>) {
     const target = tasks.find((task) => task.id === id);
@@ -308,7 +310,7 @@ export default function Page() {
         {dragTaskId !== null && <><div aria-label="拖动切换上一周" className="week-edge week-edge-prev" onDragOver={(event) => { event.preventDefault(); event.dataTransfer.dropEffect = "move"; hoverWeekEdge(-1); }} /><div aria-label="拖动切换下一周" className="week-edge week-edge-next" onDragOver={(event) => { event.preventDefault(); event.dataTransfer.dropEffect = "move"; hoverWeekEdge(1); }} /></>}
         <div className="days-grid">{weekDates.map((date, index) => {
           const dateIso = iso(date);
-          const isToday = dateIso === iso(today);
+          const isToday = dateIso === iso(currentNow);
           const dayKey = `timeline-day-${dateIso}`;
           const dayTasks = visible
             .filter((task) => task.due === dateIso && task.status !== "待完成")
