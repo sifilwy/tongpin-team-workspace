@@ -67,6 +67,7 @@ export default function Page() {
   const [messageAuthor, setMessageAuthor] = useState("xzx");
   const [reviewText, setReviewText] = useState("");
   const [reviewAuthor, setReviewAuthor] = useState("xzx");
+  const [storageReady, setStorageReady] = useState(false);
 
   useEffect(() => {
     try {
@@ -75,9 +76,10 @@ export default function Page() {
       if (savedTasks) setTasks((JSON.parse(savedTasks) as Task[]).map((task) => ({ ...task, notionUrl: NOTION_COLLAB_URL })));
       if (savedMessages) setMessages(JSON.parse(savedMessages));
     } catch { /* use starter data */ }
+    finally { setStorageReady(true); }
   }, []);
-  useEffect(() => { localStorage.setItem("tongpin-tasks-v8", JSON.stringify(tasks)); }, [tasks]);
-  useEffect(() => { localStorage.setItem("tongpin-messages-v8", JSON.stringify(messages)); }, [messages]);
+  useEffect(() => { if (storageReady) localStorage.setItem("tongpin-tasks-v8", JSON.stringify(tasks)); }, [storageReady, tasks]);
+  useEffect(() => { if (storageReady) localStorage.setItem("tongpin-messages-v8", JSON.stringify(messages)); }, [storageReady, messages]);
   useEffect(() => {
     if (!taskMenu) return;
     const close = () => setTaskMenu(null);

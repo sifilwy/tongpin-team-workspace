@@ -77,6 +77,7 @@ export default function PersonalSchedule() {
   const [renamingCategory, setRenamingCategory] = useState<string | null>(null);
   const [categoryDraft, setCategoryDraft] = useState("");
   const [dragPreview, setDragPreview] = useState<{ due: string; startTime: string } | null>(null);
+  const [storageReady, setStorageReady] = useState(false);
   const dragPreviewRef = useRef<{ due: string; startTime: string } | null>(null);
   const edgeHover = useRef<{ direction: -1 | 0 | 1; since: number }>({ direction: 0, since: 0 });
   const edgeTimer = useRef<number | null>(null);
@@ -100,9 +101,10 @@ export default function PersonalSchedule() {
       const parsedCategories = savedCategories ? JSON.parse(savedCategories) as Partial<Record<Owner, string[]>> : {};
       setCategories(restoreCategories(parsedCategories, restoredTasks));
     } catch { /* keep starter data */ }
+    finally { setStorageReady(true); }
   }, []);
-  useEffect(() => { localStorage.setItem(TASK_KEY, JSON.stringify(tasks)); }, [tasks]);
-  useEffect(() => { localStorage.setItem(CATEGORY_KEY, JSON.stringify(categories)); }, [categories]);
+  useEffect(() => { if (storageReady) localStorage.setItem(TASK_KEY, JSON.stringify(tasks)); }, [storageReady, tasks]);
+  useEffect(() => { if (storageReady) localStorage.setItem(CATEGORY_KEY, JSON.stringify(categories)); }, [storageReady, categories]);
   useEffect(() => {
     if (!menu) return;
     const close = () => setMenu(null);
