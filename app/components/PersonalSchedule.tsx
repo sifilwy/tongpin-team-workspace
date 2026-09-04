@@ -3,7 +3,7 @@
 import { FormEvent, MouseEvent, PointerEvent as ReactPointerEvent, useEffect, useMemo, useRef, useState } from "react";
 import { computeOverlapLayout, snapStart, toMinutes, toTime } from "../lib/personal-layout.mjs";
 
-type Owner = "xzx" | "czl";
+type Owner = "xzx" | "吃吃" | "czl" | "子涵" | "悦悦";
 type PersonalTask = {
   id: number;
   title: string;
@@ -18,8 +18,18 @@ type PersonalTask = {
 
 const PEOPLE: { name: Owner; color: string }[] = [
   { name: "xzx", color: "#d99b39" },
+  { name: "吃吃", color: "#e8795c" },
   { name: "czl", color: "#2f9b8f" },
+  { name: "子涵", color: "#5488d7" },
+  { name: "悦悦", color: "#6c5ce7" },
 ];
+const DEFAULT_CATEGORIES: Record<Owner, string[]> = {
+  xzx: ["独立"],
+  吃吃: ["独立"],
+  czl: ["独立"],
+  子涵: ["独立"],
+  悦悦: ["独立"],
+};
 const TASK_KEY = "tongpin-personal-tasks-v3";
 const LEGACY_TASK_KEY = "tongpin-personal-tasks-v2";
 const CATEGORY_KEY = "tongpin-personal-categories-v2";
@@ -40,11 +50,11 @@ const starterTasks: PersonalTask[] = [
 
 export default function PersonalSchedule() {
   const [tasks, setTasks] = useState<PersonalTask[]>(starterTasks);
-  const [categories, setCategories] = useState<Record<Owner, string[]>>({ xzx: ["独立"], czl: ["独立"] });
+  const [categories, setCategories] = useState<Record<Owner, string[]>>(DEFAULT_CATEGORIES);
   const [owner, setOwner] = useState<Owner>("xzx");
   const [allView, setAllView] = useState(false);
   const [completedView, setCompletedView] = useState(false);
-  const [openCategories, setOpenCategories] = useState<Record<Owner, string[]>>({ xzx: ["独立"], czl: ["独立"] });
+  const [openCategories, setOpenCategories] = useState<Record<Owner, string[]>>(DEFAULT_CATEGORIES);
   const [weekOffset, setWeekOffset] = useState(0);
   const [dragId, setDragId] = useState<number | null>(null);
   const [dropKey, setDropKey] = useState<string | null>(null);
@@ -77,7 +87,7 @@ export default function PersonalSchedule() {
       }
       if (savedCategories) {
         const parsed = JSON.parse(savedCategories) as Partial<Record<Owner, string[]>>;
-        setCategories({ xzx: parsed.xzx?.length ? parsed.xzx : ["独立"], czl: parsed.czl?.length ? parsed.czl : ["独立"] });
+        setCategories(PEOPLE.reduce((current, person) => ({ ...current, [person.name]: parsed[person.name]?.length ? parsed[person.name]! : ["独立"] }), {} as Record<Owner, string[]>));
       }
     } catch { /* keep starter data */ }
   }, []);
