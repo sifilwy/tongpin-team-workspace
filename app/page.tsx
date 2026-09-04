@@ -78,8 +78,28 @@ export default function Page() {
     } catch { /* use starter data */ }
     finally { setStorageReady(true); }
   }, []);
-  useEffect(() => { if (storageReady) localStorage.setItem("tongpin-tasks-v8", JSON.stringify(tasks)); }, [storageReady, tasks]);
-  useEffect(() => { if (storageReady) localStorage.setItem("tongpin-messages-v8", JSON.stringify(messages)); }, [storageReady, messages]);
+  useEffect(() => {
+    if (!storageReady) return;
+    const next = JSON.stringify(tasks);
+    if (localStorage.getItem("tongpin-tasks-v8") !== next) localStorage.setItem("tongpin-tasks-v8", next);
+  }, [storageReady, tasks]);
+  useEffect(() => {
+    if (!storageReady) return;
+    const next = JSON.stringify(messages);
+    if (localStorage.getItem("tongpin-messages-v8") !== next) localStorage.setItem("tongpin-messages-v8", next);
+  }, [storageReady, messages]);
+  useEffect(() => {
+    const syncFromAnotherTab = (event: StorageEvent) => {
+      try {
+        if (event.key === "tongpin-tasks-v8" && event.newValue) {
+          setTasks((JSON.parse(event.newValue) as Task[]).map((task) => ({ ...task, notionUrl: NOTION_COLLAB_URL })));
+        }
+        if (event.key === "tongpin-messages-v8" && event.newValue) setMessages(JSON.parse(event.newValue) as Message[]);
+      } catch { /* ignore a malformed value written by an older page */ }
+    };
+    window.addEventListener("storage", syncFromAnotherTab);
+    return () => window.removeEventListener("storage", syncFromAnotherTab);
+  }, []);
   useEffect(() => {
     if (!taskMenu) return;
     const close = () => setTaskMenu(null);

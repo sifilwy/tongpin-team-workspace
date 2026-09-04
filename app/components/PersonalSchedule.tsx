@@ -79,6 +79,7 @@ export default function PersonalSchedule() {
   const [dragPreview, setDragPreview] = useState<{ due: string; startTime: string } | null>(null);
   const [storageReady, setStorageReady] = useState(false);
   const dragPreviewRef = useRef<{ due: string; startTime: string } | null>(null);
+  const tasksRef = useRef<PersonalTask[]>(starterTasks);
   const edgeHover = useRef<{ direction: -1 | 0 | 1; since: number }>({ direction: 0, since: 0 });
   const edgeTimer = useRef<number | null>(null);
   const dragOffsetY = useRef(0);
@@ -103,8 +104,31 @@ export default function PersonalSchedule() {
     } catch { /* keep starter data */ }
     finally { setStorageReady(true); }
   }, []);
-  useEffect(() => { if (storageReady) localStorage.setItem(TASK_KEY, JSON.stringify(tasks)); }, [storageReady, tasks]);
-  useEffect(() => { if (storageReady) localStorage.setItem(CATEGORY_KEY, JSON.stringify(categories)); }, [storageReady, categories]);
+  useEffect(() => {
+    if (!storageReady) return;
+    const next = JSON.stringify(tasks);
+    if (localStorage.getItem(TASK_KEY) !== next) localStorage.setItem(TASK_KEY, next);
+  }, [storageReady, tasks]);
+  useEffect(() => { tasksRef.current = tasks; }, [tasks]);
+  useEffect(() => {
+    if (!storageReady) return;
+    const next = JSON.stringify(categories);
+    if (localStorage.getItem(CATEGORY_KEY) !== next) localStorage.setItem(CATEGORY_KEY, next);
+  }, [storageReady, categories]);
+  useEffect(() => {
+    const syncFromAnotherTab = (event: StorageEvent) => {
+      try {
+        if (event.key === TASK_KEY && event.newValue) {
+          setTasks((JSON.parse(event.newValue) as PersonalTask[]).map((task) => ({ ...task, startTime: task.startTime || "09:00", endTime: task.endTime || "10:00" })));
+        }
+        if (event.key === CATEGORY_KEY && event.newValue) {
+          setCategories(restoreCategories(JSON.parse(event.newValue) as Partial<Record<Owner, string[]>>, tasksRef.current));
+        }
+      } catch { /* ignore a malformed value written by an older page */ }
+    };
+    window.addEventListener("storage", syncFromAnotherTab);
+    return () => window.removeEventListener("storage", syncFromAnotherTab);
+  }, []);
   useEffect(() => {
     if (!menu) return;
     const close = () => setMenu(null);
