@@ -14,6 +14,8 @@ export type Task = {
   notionUrl?: string;
   completedAt?: string;
   completedBy?: string;
+  amount?: number;
+  amountRecipient?: string;
   deliverable?: string;
   reviews: Review[];
   notes?: TaskNote[];

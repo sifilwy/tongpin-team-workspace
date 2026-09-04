@@ -1,0 +1,16 @@
+.task-amount-chip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 10px 0;
+  padding: 9px 11px;
+  border-radius: 9px;
+  background: #f1efff;
+  color: #79748f;
+  font-size: 9px;
+}
+
+.task-amount-chip b {
+  color: #5e51d1;
+  font-size: 13px;
+}
