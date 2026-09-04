@@ -266,7 +266,7 @@ export default function Page() {
     <nav className="main-nav">
       <button className="brand" onClick={() => navigate("overview")}><span>同</span><strong>同频工作台</strong></button>
       <div className="nav-links">{([["overview", "协作总览"], ["timeline", "任务时间线"], ["review", "总结复盘"], ["personal", "个人日程"]] as [View, string][]).map(([id, label]) => <button key={id} className={view === id ? "active" : ""} onClick={() => navigate(id)}>{label}</button>)}</div>
-      <button className="create-button" onClick={() => setShowNew(true)}>＋ 新建任务</button>
+      {view !== "personal" && <button className="create-button" onClick={() => setShowNew(true)}>＋ 新建任务</button>}
     </nav>
 
     {view === "overview" && (showCompleted ? <CompletedWorkspace tasks={tasks} activeCategory={completedCategory} focusTaskId={completedTaskId} onCategoryChange={(category) => { setCompletedCategory(category); setCompletedTaskId(null); }} onUpdateTask={updateTask} onContextMenu={showTaskMenu} onExit={() => { setShowCompleted(false); setCompletedTaskId(null); }} /> : <section className="overview-page">

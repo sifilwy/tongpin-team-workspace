@@ -23,13 +23,13 @@ const PEOPLE: { name: Owner; color: string }[] = [
   { name: "子涵", color: "#5488d7" },
   { name: "悦悦", color: "#6c5ce7" },
 ];
-const DEFAULT_CATEGORIES: Record<Owner, string[]> = {
+const createDefaultCategories = (): Record<Owner, string[]> => ({
   xzx: ["独立"],
   吃吃: ["独立"],
   czl: ["独立"],
   子涵: ["独立"],
   悦悦: ["独立"],
-};
+});
 const TASK_KEY = "tongpin-personal-tasks-v3";
 const LEGACY_TASK_KEY = "tongpin-personal-tasks-v2";
 const CATEGORY_KEY = "tongpin-personal-categories-v2";
@@ -48,13 +48,23 @@ const starterTasks: PersonalTask[] = [
   { id: 906, title: "完成个人周报初稿", owner: "xzx", due: iso(new Date()), done: true, category: "独立", note: "", startTime: "15:30", endTime: "16:30" },
 ];
 
+function restoreCategories(saved: Partial<Record<Owner, string[]>>, tasks: PersonalTask[]) {
+  return PEOPLE.reduce((result, person) => {
+    const savedNames = (saved[person.name] || []).filter((name): name is string => typeof name === "string" && name.trim().length > 0);
+    const taskNames = tasks.filter((task) => task.owner === person.name).map((task) => task.category).filter(Boolean);
+    result[person.name] = [...new Set([...savedNames, ...taskNames])];
+    if (result[person.name].length === 0) result[person.name] = ["独立"];
+    return result;
+  }, createDefaultCategories());
+}
+
 export default function PersonalSchedule() {
   const [tasks, setTasks] = useState<PersonalTask[]>(starterTasks);
-  const [categories, setCategories] = useState<Record<Owner, string[]>>(DEFAULT_CATEGORIES);
+  const [categories, setCategories] = useState<Record<Owner, string[]>>(() => createDefaultCategories());
   const [owner, setOwner] = useState<Owner>("xzx");
   const [allView, setAllView] = useState(false);
   const [completedView, setCompletedView] = useState(false);
-  const [openCategories, setOpenCategories] = useState<Record<Owner, string[]>>(DEFAULT_CATEGORIES);
+  const [openCategories, setOpenCategories] = useState<Record<Owner, string[]>>(() => createDefaultCategories());
   const [weekOffset, setWeekOffset] = useState(0);
   const [dragId, setDragId] = useState<number | null>(null);
   const [dropKey, setDropKey] = useState<string | null>(null);
@@ -80,15 +90,15 @@ export default function PersonalSchedule() {
       const legacyTasks = localStorage.getItem(LEGACY_TASK_KEY);
       const savedCategories = localStorage.getItem(CATEGORY_KEY);
       const sourceTasks = savedTasks || legacyTasks;
+      let restoredTasks = starterTasks;
       if (sourceTasks) {
         const restored = (JSON.parse(sourceTasks) as PersonalTask[]).map((task) => ({ ...task, startTime: task.startTime || "09:00", endTime: task.endTime || "10:00" }));
         const restoredIds = new Set(restored.map((task) => task.id));
-        setTasks(savedTasks ? restored : [...restored, ...starterTasks.filter((task) => !restoredIds.has(task.id))]);
+        restoredTasks = savedTasks ? restored : [...restored, ...starterTasks.filter((task) => !restoredIds.has(task.id))];
+        setTasks(restoredTasks);
       }
-      if (savedCategories) {
-        const parsed = JSON.parse(savedCategories) as Partial<Record<Owner, string[]>>;
-        setCategories(PEOPLE.reduce((current, person) => ({ ...current, [person.name]: parsed[person.name]?.length ? parsed[person.name]! : ["独立"] }), {} as Record<Owner, string[]>));
-      }
+      const parsedCategories = savedCategories ? JSON.parse(savedCategories) as Partial<Record<Owner, string[]>> : {};
+      setCategories(restoreCategories(parsedCategories, restoredTasks));
     } catch { /* keep starter data */ }
   }, []);
   useEffect(() => { localStorage.setItem(TASK_KEY, JSON.stringify(tasks)); }, [tasks]);
