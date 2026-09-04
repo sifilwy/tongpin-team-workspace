@@ -145,6 +145,10 @@
   color: #a0a2a8;
 }
 
+.calendar-card.overdue:not(.completed) {
+  box-shadow: inset 3px 0 0 #e26c59, 0 6px 15px rgba(179, 79, 63, .08);
+}
+
 @media (max-width: 700px) {
   .week-toolbar {
     align-items: flex-start;
