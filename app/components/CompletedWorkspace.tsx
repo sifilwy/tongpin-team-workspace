@@ -1,13 +1,11 @@
 "use client";
 
 import { FormEvent, MouseEvent as ReactMouseEvent, useState } from "react";
-import { categories, members, Category, Review, Task } from "../lib/model";
+import { categories, members, Review, Task } from "../lib/model";
 
 type Props = {
   tasks: Task[];
-  activeCategory: Category;
   focusTaskId: number | null;
-  onCategoryChange: (category: Category) => void;
   onUpdateTask: (id: number, patch: Partial<Task>) => void;
   onContextMenu: (event: ReactMouseEvent, id: number) => void;
   onExit: () => void;
@@ -24,7 +22,9 @@ const preciseTime = () => {
 
 export default function CompletedWorkspace({ tasks, focusTaskId, onUpdateTask, onContextMenu, onExit }: Props) {
   const [selectedTaskId, setSelectedTaskId] = useState<number | null>(null);
-  const completed = tasks.filter((task) => task.status === "已完成");
+  const completed = tasks
+    .filter((task) => task.status === "已完成")
+    .sort((a, b) => Date.parse(b.completedAt || "") - Date.parse(a.completedAt || ""));
   const selected = completed.find((task) => task.id === selectedTaskId) ?? null;
 
   return <section className="completed-workspace">
