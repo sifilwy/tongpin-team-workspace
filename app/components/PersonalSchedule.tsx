@@ -67,7 +67,43 @@ export default function PersonalSchedule() {
   const [dragId, setDragId] = useState<number | null>(null);
   const [dropKey, setDropKey] = useState<string | null>(null);
   const [editing, setEditing] = useState<PersonalTask | null>(null);
-  const [newDefaults, setNewDefaults] = useState<{ due: string | null; owner: Owner } | null>(null);
+  const [newDefaults, setNewDefaults] = useState<{ due: string | null; owner: Owner; startTime?: string; endTime?: string } | null>(null);
+  const selection = useRef<{ pointerId: number; startY: number; anchor: number; due: string; owner: Owner; track: HTMLDivElement } | null>(null);
+  const [newRange, setNewRange] = useState<{ due: string; start: number; end: number } | null>(null);
+  function rangeAt(clientY: number, track: HTMLDivElement, anchor?: number) {
+    const bounds = track.getBoundingClientRect();
+    const minute = Math.max(DAY_START, Math.min(DAY_END, Math.round((DAY_START + (clientY - bounds.top) / bounds.height * (DAY_END - DAY_START)) / 15) * 15));
+    const start = Math.min(DAY_END - 15, Math.min(anchor ?? minute, minute));
+    return { start, end: Math.min(DAY_END, Math.max(start + 15, anchor ?? minute, minute)), minute };
+  }
+  function beginRange(event: ReactPointerEvent<HTMLDivElement>, due: string) {
+    if (event.button !== 0 || !event.isPrimary || event.pointerType === "touch" || event.target !== event.currentTarget) return;
+    event.preventDefault();
+    const track = event.currentTarget;
+    selection.current = { pointerId: event.pointerId, startY: event.clientY, anchor: rangeAt(event.clientY, track).minute, due, owner: allView ? member : owner, track };
+    track.setPointerCapture(event.pointerId);
+  }
+  function updateRange(event: ReactPointerEvent<HTMLDivElement>) {
+    const current = selection.current;
+    if (!current || current.pointerId !== event.pointerId || Math.abs(event.clientY - current.startY) < 4) return;
+    const { start, end } = rangeAt(event.clientY, current.track, current.anchor);
+    setNewRange({ due: current.due, start, end });
+  }
+  function finishRange(event: ReactPointerEvent<HTMLDivElement>) {
+    const current = selection.current;
+    if (!current || current.pointerId !== event.pointerId) return;
+    selection.current = null; setNewRange(null);
+    if (current.track.hasPointerCapture(event.pointerId)) current.track.releasePointerCapture(event.pointerId);
+    if (Math.abs(event.clientY - current.startY) < 4) return;
+    const { start, end } = rangeAt(event.clientY, current.track, current.anchor);
+    openNew({ due: current.due, owner: current.owner, startTime: toTime(start), endTime: toTime(end) });
+  }
+  function cancelRange() { selection.current = null; setNewRange(null); }
+  useEffect(() => {
+    const cancel = (event: KeyboardEvent) => { if (event.key === "Escape") cancelRange(); };
+    window.addEventListener("keydown", cancel);
+    return () => window.removeEventListener("keydown", cancel);
+  }, []);
   const [modalOwner, setModalOwner] = useState<Owner>("xzx");
   const [menu, setMenu] = useState<{ id: number; x: number; y: number } | null>(null);
   const [addingCategory, setAddingCategory] = useState(false);
@@ -140,7 +176,7 @@ export default function PersonalSchedule() {
     setCategoryDraft("");
   }
 
-  function openNew(defaults: { due: string | null; owner: Owner }) {
+  function openNew(defaults: { due: string | null; owner: Owner; startTime?: string; endTime?: string }) {
     setModalOwner(defaults.owner);
     setEditing(null);
     setNewDefaults(defaults);
@@ -358,7 +394,7 @@ export default function PersonalSchedule() {
           const overlapLayout = computeOverlapLayout(dayTasks);
           return <section key={due} className={`personal-date ${due === iso(now) ? "today" : ""} ${dropKey === due ? "is-over" : ""}`}>
             <header><span>{["周一", "周二", "周三", "周四", "周五", "周六", "周日"][index]}</span><b>{date.getDate()}</b></header>
-            <div className="personal-day-track" data-due={due}>{dragPreview?.due === due && <div className="personal-drop-preview" style={{ top: `${((toMinutes(dragPreview.startTime) - DAY_START) / (DAY_END - DAY_START)) * 100}%` }}><span>{dragPreview.startTime}</span></div>}{dayTasks.map((task) => {
+            <div className="personal-day-track" data-due={due} onPointerDown={event => beginRange(event, due)} onPointerMove={updateRange} onPointerUp={finishRange} onPointerCancel={cancelRange} onLostPointerCapture={cancelRange}>{newRange?.due === due && <div className="personal-new-range" style={{ top: `${(newRange.start - DAY_START) / (DAY_END - DAY_START) * 100}%`, height: `${(newRange.end - newRange.start) / (DAY_END - DAY_START) * 100}%` }}><span>{toTime(newRange.start)}–{toTime(newRange.end)}</span></div>}{dragPreview?.due === due && <div className="personal-drop-preview" style={{ top: `${((toMinutes(dragPreview.startTime) - DAY_START) / (DAY_END - DAY_START)) * 100}%` }}><span>{dragPreview.startTime}</span></div>}{dayTasks.map((task) => {
               const person = PEOPLE.find((item) => item.name === task.owner)!;
               const start = Math.max(DAY_START, toMinutes(task.startTime));
               const end = Math.min(DAY_END, Math.max(start + 30, toMinutes(task.endTime)));
@@ -374,6 +410,6 @@ export default function PersonalSchedule() {
 
     {menu && (() => { const task = tasks.find((item) => item.id === menu.id); if (!task) return null; return <div className="personal-context" style={{ left: menu.x, top: menu.y }} onPointerDown={(event) => event.stopPropagation()}><strong>{task.title}</strong><button onClick={() => { setTasks((current) => current.map((item) => item.id === task.id ? { ...item, done: !item.done } : item)); setMenu(null); }}>{task.done ? "恢复未完成" : "标记完成"}</button><button onClick={() => { openEditor(task); setMenu(null); }}>修改任务</button>{task.due && <button onClick={() => { moveTask(task.id, { due: null, done: false }); setMenu(null); }}>移回待办</button>}<button className="danger" onClick={() => { if (window.confirm(`确认删除“${task.title}”？`)) setTasks((current) => current.filter((item) => item.id !== task.id)); setMenu(null); }}>删除任务</button></div>; })()}
 
-    {(editing || newDefaults) && <div className="personal-modal-bg"><form className="personal-edit-modal" onSubmit={submitTask}><header><strong>{editing ? "修改个人任务" : "新建个人任务"}</strong><button type="button" onClick={() => { setEditing(null); setNewDefaults(null); }}>×</button></header><label>任务名称<input name="title" autoFocus required defaultValue={editing?.title || ""} placeholder="准备完成什么" /></label><div><label>成员<select name="owner" value={modalOwner} onChange={(event) => setModalOwner(event.target.value as Owner)}>{PEOPLE.map((person) => <option key={person.name}>{person.name}</option>)}</select></label><label>个人分类<select key={modalOwner} name="category" defaultValue={editing?.owner === modalOwner && categories[modalOwner].includes(editing.category) ? editing.category : categories[modalOwner][0]}>{categories[modalOwner].map((item) => <option key={item}>{item}</option>)}</select></label></div><label>安排日期<input name="due" type="date" defaultValue={editing?.due || newDefaults?.due || ""} /><small>留空则进入左侧待办</small></label><div className="personal-time-fields"><label>开始时间<input name="startTime" type="time" step="900" defaultValue={editing?.startTime || "09:00"} /></label><label>结束时间<input name="endTime" type="time" step="900" defaultValue={editing?.endTime || "10:00"} /></label></div><label>备注<textarea name="note" defaultValue={editing?.note || ""} placeholder="可选" /></label><button className="save">保存</button></form></div>}
+    {(editing || newDefaults) && <div className="personal-modal-bg"><form className="personal-edit-modal" onSubmit={submitTask}><header><strong>{editing ? "修改个人任务" : "新建个人任务"}</strong><button type="button" onClick={() => { setEditing(null); setNewDefaults(null); }}>×</button></header><label>任务名称<input name="title" autoFocus required defaultValue={editing?.title || ""} placeholder="准备完成什么" /></label><div><label>成员<select name="owner" value={modalOwner} onChange={(event) => setModalOwner(event.target.value as Owner)}>{PEOPLE.map((person) => <option key={person.name}>{person.name}</option>)}</select></label><label>个人分类<select key={modalOwner} name="category" defaultValue={editing?.owner === modalOwner && categories[modalOwner].includes(editing.category) ? editing.category : categories[modalOwner][0]}>{categories[modalOwner].map((item) => <option key={item}>{item}</option>)}</select></label></div><label>安排日期<input name="due" type="date" defaultValue={editing?.due || newDefaults?.due || ""} /><small>留空则进入左侧待办</small></label><div className="personal-time-fields"><label>开始时间<input name="startTime" type="time" step="900" defaultValue={editing?.startTime || newDefaults?.startTime || "09:00"} /></label><label>结束时间<input name="endTime" type="time" step="900" defaultValue={editing?.endTime || newDefaults?.endTime || "10:00"} /></label></div><label>备注<textarea name="note" defaultValue={editing?.note || ""} placeholder="可选" /></label><button className="save">保存</button></form></div>}
   </section>;
 }
