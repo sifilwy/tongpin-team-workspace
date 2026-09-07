@@ -1,0 +1,12 @@
+.review-notes { margin: 24px 0; }
+.review-notes form, .review-note-list article { background: #fff; border: 1px solid #e5e7eb; border-radius: 16px; padding: 24px; }
+.review-notes label { display: block; font-size: 20px; font-weight: 700; }
+.review-notes form p, .review-note-empty { color: #64748b; font-size: 14px; }
+.review-notes textarea { display: block; box-sizing: border-box; width: 100%; min-height: 160px; resize: vertical; padding: 14px; border: 1px solid #cbd5e1; border-radius: 10px; font: inherit; line-height: 1.6; }
+.review-notes footer, .review-note-list header { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-top: 12px; }
+.review-notes footer span, .review-note-list time { color: #64748b; font-size: 14px; }
+.review-notes button { background: #245b4b; color: white; border: 0; border-radius: 10px; padding: 10px 20px; font: inherit; cursor: pointer; }
+.review-notes button:disabled { opacity: .45; cursor: default; }
+.review-note-list { display: grid; gap: 14px; margin-top: 20px; }
+.review-note-list header { margin-top: 0; }
+.review-note-list article p { white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.7; }

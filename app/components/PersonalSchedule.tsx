@@ -1,6 +1,7 @@
 "use client";
 import { useSharedState } from "../lib/use-shared-state";
 import { useMember } from "./TeamAccess";
+import { restorePersonalCategories } from "../lib/personal-categories";
 
 import { FormEvent, MouseEvent, PointerEvent as ReactPointerEvent, useEffect, useMemo, useRef, useState } from "react";
 import { computeOverlapLayout, snapStart, toMinutes, toTime } from "../lib/personal-layout.mjs";
@@ -50,20 +51,14 @@ const starterTasks: PersonalTask[] = [
   { id: 906, title: "完成个人周报初稿", owner: "xzx", due: iso(new Date()), done: true, category: "独立", note: "", startTime: "15:30", endTime: "16:30" },
 ];
 
-function restoreCategories(saved: Partial<Record<Owner, string[]>>, tasks: PersonalTask[]) {
-  return PEOPLE.reduce((result, person) => {
-    const savedNames = (saved[person.name] || []).filter((name): name is string => typeof name === "string" && name.trim().length > 0);
-    const taskNames = tasks.filter((task) => task.owner === person.name).map((task) => task.category).filter(Boolean);
-    result[person.name] = [...new Set([...savedNames, ...taskNames])];
-    if (result[person.name].length === 0) result[person.name] = ["独立"];
-    return result;
-  }, createDefaultCategories());
-}
-
 export default function PersonalSchedule() {
   const member = useMember() as Owner;
   const [tasks, setTasks] = useSharedState<PersonalTask[]>(TASK_KEY, starterTasks);
-  const [categories, setCategories] = useSharedState<Record<Owner, string[]>>(CATEGORY_KEY, createDefaultCategories);
+  const [savedCategories, setSavedCategories] = useSharedState<Record<Owner, string[]>>(CATEGORY_KEY, createDefaultCategories);
+  const categories = useMemo(() => restorePersonalCategories(savedCategories, tasks), [savedCategories, tasks]);
+  function setCategories(update: (current: Record<Owner, string[]>) => Record<Owner, string[]>) {
+    setSavedCategories(current => update(restorePersonalCategories(current, tasks)));
+  }
   const [owner, setOwner] = useState<Owner>(member);
   const [allView, setAllView] = useState(false);
   const [completedView, setCompletedView] = useState(false);

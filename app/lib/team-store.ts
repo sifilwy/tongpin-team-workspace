@@ -21,11 +21,13 @@ function save(state: Store) {
   writeFileSync(file + ".tmp", JSON.stringify(state), { mode: 0o600 });
   renameSync(file + ".tmp", file);
 }
-const allowed = new Set(["tongpin-tasks-v8", "tongpin-messages-v8", "tongpin-personal-tasks-v3", "tongpin-personal-categories-v2"]);
+const allowed = new Set(["tongpin-tasks-v8", "tongpin-messages-v8", "tongpin-personal-tasks-v3", "tongpin-personal-categories-v2", "tongpin-review-notes-v1"]);
 const attempts = new Map<string, { count: number; until: number }>();
 export async function handleTeam(request: Request) {
+  const publicOrigin = new URL(process.env.TONGPIN_PUBLIC_ORIGIN || request.url).origin;
+  const secureCookie = new URL(publicOrigin).protocol === "https:";
   const reply = (value: unknown, status = 200, headers = {}) => Response.json(value, { status, headers: { "Cache-Control": "no-store", ...headers } });
-  if (request.method === "POST" && request.headers.get("origin") && request.headers.get("origin") !== new URL(request.url).origin) return reply({ error: "请求来源不匹配" }, 403);
+  if (request.method === "POST" && request.headers.get("origin") && request.headers.get("origin") !== publicOrigin) return reply({ error: "请求来源不匹配" }, 403);
   let state = read();
   const token = request.headers.get("cookie")?.match(/(?:^|;\s*)tongpin_session=([^;]+)/)?.[1] || "";
   const session = state.sessions[hash(token)];
@@ -52,10 +54,10 @@ export async function handleTeam(request: Request) {
     const value = randomBytes(32).toString("base64url");
     state.sessions[hash(value)] = { name, expires: Date.now() + 30 * 86400000 };
     save(state);
-    return reply({ member: name }, 200, { "Set-Cookie": `tongpin_session=${value}; HttpOnly; SameSite=Strict; Path=/; Max-Age=2592000${new URL(request.url).protocol === "https:" ? "; Secure" : ""}` });
+    return reply({ member: name }, 200, { "Set-Cookie": `tongpin_session=${value}; HttpOnly; SameSite=Strict; Path=/; Max-Age=2592000${secureCookie ? "; Secure" : ""}` });
   }
   if (!member) return reply({ error: "登录已过期，请重新进入" }, 401);
-  if (body.action === "logout") { delete state.sessions[hash(token)]; save(state); return reply({}, 200, { "Set-Cookie": "tongpin_session=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0" }); }
+  if (body.action === "logout") { delete state.sessions[hash(token)]; save(state); return reply({}, 200, { "Set-Cookie": `tongpin_session=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0${secureCookie ? "; Secure" : ""}` }); }
   if (!allowed.has(body.key)) return reply({ error: "未知数据类型" }, 400);
   const previous = state.documents[body.key];
   if ((previous?.revision || 0) !== body.revision) return reply({ error: "另一位成员已更新，请刷新后重试", document: previous }, 409);
@@ -65,6 +67,11 @@ export async function handleTeam(request: Request) {
     const old = Array.isArray(previous?.value) ? previous.value : [];
     for (const item of body.value) {
       const before = old.find((entry: { id: number }) => entry.id === item.id);
+      if (body.key === "tongpin-review-notes-v1") {
+        if (typeof item.text !== "string" || !item.text.trim() || item.text.length > 10000) return reply({ error: "请填写有效的复盘内容（最多一万字）" }, 400);
+        item.author = before?.author || member;
+        item.createdAt = before?.createdAt || new Date().toISOString();
+      }
       if (body.key === "tongpin-messages-v8" && previous && !before) item.author = member;
       if (body.key === "tongpin-tasks-v8") {
         if (previous && item.status === "已完成" && before?.status !== "已完成") { item.completedBy = member; item.completedAt = new Date().toISOString(); }
