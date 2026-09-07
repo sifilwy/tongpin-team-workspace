@@ -8,9 +8,10 @@ async function render() {
   return worker.fetch(new Request("http://localhost/", { headers: { accept: "text/html" } }), { ASSETS: { fetch: async () => new Response("Not found", { status: 404 }) } }, { waitUntil() {}, passThroughOnException() {} });
 }
 
-test("renders the team collaboration workspace", async () => {
+test("renders an identity gate without exposing task content", async () => {
   const response = await render();
   assert.equal(response.status, 200);
   const html = await response.text();
-  for (const label of ["同频工作台", "协作总览", "任务时间线", "总结复盘", "悦悦", "吃吃", "czl", "xzx", "子涵"]) assert.match(html, new RegExp(label));
+  assert.match(html, /正在连接工作台/);
+  assert.doesNotMatch(html, /确认本周咨询排期/);
 });

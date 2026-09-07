@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import TeamAccess from "./components/TeamAccess";
 
 export const metadata: Metadata = {
   title: "同频｜儿陪师咨询团队协作",
@@ -10,5 +11,5 @@ export const metadata: Metadata = {
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
-  return <html lang="zh-CN"><body>{children}</body></html>;
+  return <html lang="zh-CN"><body><TeamAccess>{children}</TeamAccess></body></html>;
 }

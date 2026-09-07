@@ -15,6 +15,8 @@ COPY --from=build --chown=node:node /app/package.json /app/package-lock.json ./
 RUN npm ci --include=dev
 COPY --from=build --chown=node:node /app/public ./public
 COPY --from=build --chown=node:node /app/dist ./dist
+RUN mkdir -p /app/data && chown node:node /app/data
+ENV TONGPIN_DATA_DIR=/app/data
 
 USER node
 EXPOSE 4200

@@ -2,6 +2,7 @@
 
 import { FormEvent, MouseEvent as ReactMouseEvent, useState } from "react";
 import { categories, members, Review, Task } from "../lib/model";
+import { useMember } from "./TeamAccess";
 
 type Props = {
   tasks: Task[];
@@ -59,7 +60,7 @@ function CompletedTaskRow({ task, focused, selected, onOpen, onUpdate, onContext
 }
 
 function CommunicationPanel({ task, onClose, onUpdate }: { task: Task; onClose: () => void; onUpdate: (patch: Partial<Task>) => void }) {
-  const [author, setAuthor] = useState(members[0].name);
+  const author = useMember();
   const [text, setText] = useState("");
 
   function send(event: FormEvent) {
@@ -74,6 +75,6 @@ function CommunicationPanel({ task, onClose, onUpdate }: { task: Task; onClose: 
     <header><div><span>任务沟通</span><strong>{task.title}</strong><small>完成人：{task.completedBy || "待确认"} · {completedDate(task)}</small></div><button aria-label="关闭沟通面板" onClick={onClose}>×</button></header>
     {task.notionUrl && <a className="completed-notion-link" href={task.notionUrl} target="_blank" rel="noreferrer">打开 Notion 任务笔记 ↗</a>}
     <div className="completed-communication-list">{task.reviews.length === 0 ? <p className="communication-empty">还没有沟通记录</p> : task.reviews.map((message) => <article key={message.id}><div><strong>{message.author}</strong><time>{message.createdAt}</time></div><p>{message.text}</p></article>)}</div>
-    <form className="completed-communication-form" onSubmit={send}><select value={author} onChange={(event) => setAuthor(event.target.value)}>{members.map((member) => <option key={member.name}>{member.name}</option>)}</select><textarea value={text} onChange={(event) => setText(event.target.value)} placeholder="补充沟通、结果或需要配合的事项…" /><button>发送</button></form>
+    <form className="completed-communication-form" onSubmit={send}><span>{author}</span><textarea value={text} onChange={(event) => setText(event.target.value)} placeholder="补充沟通、结果或需要配合的事项…" /><button>发送</button></form>
   </aside>;
 }

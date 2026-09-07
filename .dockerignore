@@ -11,3 +11,4 @@ examples
 更新订单库.cmd
 *.pem
 .env*
+.team-data

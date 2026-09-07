@@ -1,4 +1,6 @@
 "use client";
+import { useSharedState } from "../lib/use-shared-state";
+import { useMember } from "./TeamAccess";
 
 import { FormEvent, MouseEvent, PointerEvent as ReactPointerEvent, useEffect, useMemo, useRef, useState } from "react";
 import { computeOverlapLayout, snapStart, toMinutes, toTime } from "../lib/personal-layout.mjs";
@@ -59,9 +61,10 @@ function restoreCategories(saved: Partial<Record<Owner, string[]>>, tasks: Perso
 }
 
 export default function PersonalSchedule() {
-  const [tasks, setTasks] = useState<PersonalTask[]>(starterTasks);
-  const [categories, setCategories] = useState<Record<Owner, string[]>>(() => createDefaultCategories());
-  const [owner, setOwner] = useState<Owner>("xzx");
+  const member = useMember() as Owner;
+  const [tasks, setTasks] = useSharedState<PersonalTask[]>(TASK_KEY, starterTasks);
+  const [categories, setCategories] = useSharedState<Record<Owner, string[]>>(CATEGORY_KEY, createDefaultCategories);
+  const [owner, setOwner] = useState<Owner>(member);
   const [allView, setAllView] = useState(false);
   const [completedView, setCompletedView] = useState(false);
   const [openCategories, setOpenCategories] = useState<Record<Owner, string[]>>(() => createDefaultCategories());
@@ -77,7 +80,6 @@ export default function PersonalSchedule() {
   const [renamingCategory, setRenamingCategory] = useState<string | null>(null);
   const [categoryDraft, setCategoryDraft] = useState("");
   const [dragPreview, setDragPreview] = useState<{ due: string; startTime: string } | null>(null);
-  const [storageReady, setStorageReady] = useState(false);
   const dragPreviewRef = useRef<{ due: string; startTime: string } | null>(null);
   const tasksRef = useRef<PersonalTask[]>(starterTasks);
   const edgeHover = useRef<{ direction: -1 | 0 | 1; since: number }>({ direction: 0, since: 0 });
@@ -86,49 +88,7 @@ export default function PersonalSchedule() {
   const pointerDrag = useRef<{ id: number; pointerId: number; startX: number; startY: number; active: boolean } | null>(null);
   const suppressClick = useRef(false);
 
-  useEffect(() => {
-    try {
-      const savedTasks = localStorage.getItem(TASK_KEY);
-      const legacyTasks = localStorage.getItem(LEGACY_TASK_KEY);
-      const savedCategories = localStorage.getItem(CATEGORY_KEY);
-      const sourceTasks = savedTasks || legacyTasks;
-      let restoredTasks = starterTasks;
-      if (sourceTasks) {
-        const restored = (JSON.parse(sourceTasks) as PersonalTask[]).map((task) => ({ ...task, startTime: task.startTime || "09:00", endTime: task.endTime || "10:00" }));
-        const restoredIds = new Set(restored.map((task) => task.id));
-        restoredTasks = savedTasks ? restored : [...restored, ...starterTasks.filter((task) => !restoredIds.has(task.id))];
-        setTasks(restoredTasks);
-      }
-      const parsedCategories = savedCategories ? JSON.parse(savedCategories) as Partial<Record<Owner, string[]>> : {};
-      setCategories(restoreCategories(parsedCategories, restoredTasks));
-    } catch { /* keep starter data */ }
-    finally { setStorageReady(true); }
-  }, []);
-  useEffect(() => {
-    if (!storageReady) return;
-    const next = JSON.stringify(tasks);
-    if (localStorage.getItem(TASK_KEY) !== next) localStorage.setItem(TASK_KEY, next);
-  }, [storageReady, tasks]);
   useEffect(() => { tasksRef.current = tasks; }, [tasks]);
-  useEffect(() => {
-    if (!storageReady) return;
-    const next = JSON.stringify(categories);
-    if (localStorage.getItem(CATEGORY_KEY) !== next) localStorage.setItem(CATEGORY_KEY, next);
-  }, [storageReady, categories]);
-  useEffect(() => {
-    const syncFromAnotherTab = (event: StorageEvent) => {
-      try {
-        if (event.key === TASK_KEY && event.newValue) {
-          setTasks((JSON.parse(event.newValue) as PersonalTask[]).map((task) => ({ ...task, startTime: task.startTime || "09:00", endTime: task.endTime || "10:00" })));
-        }
-        if (event.key === CATEGORY_KEY && event.newValue) {
-          setCategories(restoreCategories(JSON.parse(event.newValue) as Partial<Record<Owner, string[]>>, tasksRef.current));
-        }
-      } catch { /* ignore a malformed value written by an older page */ }
-    };
-    window.addEventListener("storage", syncFromAnotherTab);
-    return () => window.removeEventListener("storage", syncFromAnotherTab);
-  }, []);
   useEffect(() => {
     if (!menu) return;
     const close = () => setMenu(null);
