@@ -64,15 +64,16 @@ test('review notes persist with authenticated authors and reject empty content',
   const login = await call({ action: 'login', code: codes.czl });
   const cookie = login.headers.get('set-cookie').split(';')[0];
   const key = 'tongpin-review-notes-v1';
-  const saved = await call({ key, revision: 0, value: [{ id: 701, text: '复盘内容\n下一步', author: 'fake', createdAt: 'fake' }] }, cookie);
+  const saved = await call({ key, revision: 0, value: [{ id: 701, taskId: 101, text: '复盘内容\n下一步', author: 'fake', createdAt: 'fake' }] }, cookie);
   assert.equal(saved.status, 200);
   const { document } = await saved.json();
   assert.equal(document.value[0].author, 'czl');
+  assert.equal(document.value[0].taskId, 101);
   assert.ok(Number.isFinite(Date.parse(document.value[0].createdAt)));
   assert.equal(JSON.parse(readFileSync(join(directory, 'workspace.json'), 'utf8')).documents[key].value[0].text, '复盘内容\n下一步');
   assert.equal((await call({ key, revision: 0, value: [] }, cookie)).status, 409);
-  assert.equal((await call({ key, revision: 1, value: [{ id: 702, text: '  ' }] }, cookie)).status, 400);
-  assert.equal((await call({ key, revision: 1, value: [{ id: 702, text: 'x'.repeat(10001) }] }, cookie)).status, 400);
+  assert.equal((await call({ key, revision: 1, value: [{ id: 702, taskId: 101, text: '  ' }] }, cookie)).status, 400);
+  assert.equal((await call({ key, revision: 1, value: [{ id: 702, taskId: 101, text: 'x'.repeat(10001) }] }, cookie)).status, 400);
   await call({ action: 'logout' }, cookie);
 });
 

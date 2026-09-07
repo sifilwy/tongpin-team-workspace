@@ -10,3 +10,10 @@
 .review-note-list { display: grid; gap: 14px; margin-top: 20px; }
 .review-note-list header { margin-top: 0; }
 .review-note-list article p { white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.7; }
+.task-review-dialog { width: min(680px, calc(100vw - 32px)); max-height: 85vh; box-sizing: border-box; border: 0; border-radius: 20px; padding: 24px; color: #25312e; }
+.task-review-dialog::backdrop { background: rgba(20, 30, 28, .45); }
+.task-review-heading { display: flex; justify-content: space-between; gap: 20px; align-items: flex-start; }
+.task-review-heading span { font-size: 14px; color: #64748b; }
+.task-review-heading h2 { font-size: 22px; margin: 8px 0 0; overflow-wrap: anywhere; }
+.task-review-heading button { border: 0; background: #f1f5f4; border-radius: 50%; min-width: 36px; height: 36px; font-size: 24px; cursor: pointer; }
+.task-review-dialog .review-notes { margin-bottom: 0; }

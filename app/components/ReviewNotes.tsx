@@ -3,9 +3,9 @@ import { useEffect, useState, type FormEvent } from "react";
 import { useMember } from "./TeamAccess";
 import "../review-notes.css";
 
-type ReviewNote = { id: number; author: string; text: string; createdAt: string };
+type ReviewNote = { id: number; author: string; text: string; createdAt: string; taskId?: number };
 
-export default function ReviewNotes() {
+export default function ReviewNotes({ taskId }: { taskId: number }) {
   const member = useMember();
   const [notes, setNotes] = useState<ReviewNote[]>([]);
   const [text, setText] = useState("");
@@ -25,7 +25,7 @@ export default function ReviewNotes() {
   async function submit(event: FormEvent) {
     event.preventDefault();
     if (!text.trim() || saving || loading) return;
-    const note = { id: Date.now(), author: member, text: text.trim(), createdAt: new Date().toISOString() };
+    const note = { id: Date.now(), author: member, text: text.trim(), createdAt: new Date().toISOString(), taskId };
     setSaving(true); setError("");
     try {
       for (let attempt = 0; attempt < 3; attempt++) {
@@ -42,17 +42,19 @@ export default function ReviewNotes() {
     } catch (error) { setError(error instanceof Error ? error.message : "保存失败，文字已保留，请重试。"); }
     finally { setSaving(false); }
   }
-  return <section className="review-notes" aria-label="团队复盘">
+  const visibleNotes = notes.filter(note => note.taskId === taskId);
+  return <section className="review-notes" aria-label="任务复盘">
     <form onSubmit={submit}>
       <label htmlFor="review-note">写下复盘</label>
-      <p>记录做得好的地方、遇到的问题，以及下一步。团队成员都可以查看。</p>
+      <p>记录这项任务的收获、问题和下一步。</p>
       <textarea id="review-note" value={text} onChange={event => setText(event.target.value)} maxLength={10000} required disabled={saving} placeholder="这次有什么收获？下次准备怎么做？" />
-      <footer><span>{member} · {loading ? "正在加载…" : "保存到团队复盘"}</span><button disabled={!text.trim() || saving || loading}>{saving ? "正在保存…" : "添加复盘"}</button></footer>
+      <footer><span>{member} · {loading ? "正在加载…" : "保存到当前任务"}</span><button disabled={!text.trim() || saving || loading}>{saving ? "正在保存…" : "保存复盘"}</button></footer>
       {error && <p role="alert">{error}</p>}
     </form>
+
     <div className="review-note-list" aria-live="polite">
-      {notes.length === 0 && <p className="review-note-empty">还没有复盘，写下第一条吧。</p>}
-      {[...notes].sort((a, b) => b.id - a.id).map(note => <article key={note.id}>
+      {!loading && visibleNotes.length === 0 && <p className="review-note-empty">暂无复盘记录。</p>}
+      {[...visibleNotes].sort((a, b) => b.id - a.id).map(note => <article key={note.id}>
         <header><strong>{note.author}</strong><time dateTime={note.createdAt}>{new Date(note.createdAt).toLocaleString("zh-CN", { hour12: false })}</time></header>
         <p>{note.text}</p>
       </article>)}

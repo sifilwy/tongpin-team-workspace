@@ -68,6 +68,7 @@ export async function handleTeam(request: Request) {
     for (const item of body.value) {
       const before = old.find((entry: { id: number }) => entry.id === item.id);
       if (body.key === "tongpin-review-notes-v1") {
+        if (!Number.isFinite(item.taskId)) return reply({ error: "请选择对应的复盘任务" }, 400);
         if (typeof item.text !== "string" || !item.text.trim() || item.text.length > 10000) return reply({ error: "请填写有效的复盘内容（最多一万字）" }, 400);
         item.author = before?.author || member;
         item.createdAt = before?.createdAt || new Date().toISOString();
