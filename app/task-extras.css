@@ -1,0 +1,9 @@
+.task-assistants { border: 0; padding: 0; margin: 14px 0; min-width: 0; }
+.task-assistants legend { font-size: 14px; font-weight: 600; color: #59616f; }
+.task-assistants>div { display: flex; gap: 8px; flex-wrap: wrap; margin: 8px 0; }
+.task-assistants>div>label { display: inline-flex; align-items: center; gap: 6px; margin: 0; padding: 7px 10px; border: 1px solid #e1e4e8; border-radius: 8px; font-size: 14px; cursor: pointer; }
+.task-assistants input[type=checkbox] { width: 16px; height: 16px; margin: 0; padding: 0; }
+.task-assistants small { color: #7a8290; font-size: 12px; }
+.task-billing p { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; color: #59616f; font-size: 14px; }
+.task-billing p span { font-size: 12px; color: #7a8290; }
+.task-assist-note { display: block; font-size: 12px; color: #687183; margin-top: 5px; overflow-wrap: anywhere; }

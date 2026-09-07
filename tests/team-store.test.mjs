@@ -77,6 +77,24 @@ test('review notes persist with authenticated authors and reject empty content',
   await call({ action: 'logout' }, cookie);
 });
 
+test('assistants and actual output counts persist without changing the owner', async () => {
+  const codes = JSON.parse(readFileSync(join(directory, 'invitations.json'), 'utf8'));
+  const login = await call({ action: 'login', code: codes.czl });
+  const cookie = login.headers.get('set-cookie').split(';')[0];
+  const key = 'tongpin-tasks-v8';
+  const existing = await (await handleTeam(new Request(`http://localhost/api/team?key=${key}`, {headers:{cookie}}))).json();
+  const revision = existing.document.revision;
+  const task = { id: 801, owner: 'xzx', amount: 100, quantity: null, assistants: ['吃吃', 'czl'], reviews: [], status: '进行中' };
+  assert.equal((await call({key,revision,value:[task]},cookie)).status,200);
+  const completed = await (await call({key,revision:revision+1,value:[{...task,status:'已完成',quantity:7}]},cookie)).json();
+  assert.equal(completed.document.value[0].owner,'xzx');
+  assert.equal(completed.document.value[0].quantity,7);
+  assert.deepEqual(completed.document.value[0].assistants,['吃吃','czl']);
+  assert.equal((await call({key,revision:revision+2,value:[{...task,quantity:-1}]},cookie)).status,400);
+  assert.equal((await call({key,revision:revision+2,value:[{...task,assistants:['unknown']}]},cookie)).status,400);
+  await call({action:'logout'},cookie);
+});
+
 test('without proxy configuration cookie security follows the request scheme', async () => {
   await handleTeam(new Request('http://localhost/api/team'));
   const codes = JSON.parse(readFileSync(join(directory, 'invitations.json'), 'utf8'));

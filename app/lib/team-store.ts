@@ -75,6 +75,9 @@ export async function handleTeam(request: Request) {
       }
       if (body.key === "tongpin-messages-v8" && previous && !before) item.author = member;
       if (body.key === "tongpin-tasks-v8") {
+        if (item.quantity !== undefined && item.quantity !== null && (!Number.isSafeInteger(item.quantity) || item.quantity < 0 || item.quantity > 999999)) return reply({ error: "产出次数须为 0 到 999999 的整数" }, 400);
+        if (item.assistants !== undefined && (!Array.isArray(item.assistants) || item.assistants.some((name: unknown) => typeof name !== "string" || !names.includes(name)))) return reply({ error: "协助人无效" }, 400);
+        if (Array.isArray(item.assistants)) item.assistants = [...new Set(item.assistants)];
         if (previous && item.status === "已完成" && before?.status !== "已完成") { item.completedBy = member; item.completedAt = new Date().toISOString(); }
         for (const field of ["notes", "reviews"]) {
           if (item[field] !== undefined && !Array.isArray(item[field])) return reply({ error: "沟通格式不正确" }, 400);

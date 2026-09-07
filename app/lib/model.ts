@@ -15,6 +15,8 @@ export type Task = {
   completedAt?: string;
   completedBy?: string;
   amount?: number;
+  quantity?: number | null;
+  assistants?: string[];
   amountRecipient?: string;
   deliverable?: string;
   reviews: Review[];

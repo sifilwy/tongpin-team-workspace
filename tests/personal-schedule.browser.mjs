@@ -26,11 +26,13 @@ import Schedule from '${project}app/components/PersonalSchedule.tsx';
 import Boundary from '${project}app/components/ScheduleBoundary.tsx';
 import ReviewNotes from '${project}app/components/ReviewNotes.tsx';
 import TaskReviewDialog from '${project}app/components/TaskReviewDialog.tsx';
+import Workspace from '${project}app/page.tsx';
 const root = createRoot(document.getElementById('root'));
 let instance = 0;
 function Fault() { if (window.failSchedule) throw new Error('Expected regression fault'); return <Schedule />; }
 window.renderSchedule = () => root.render(<Boundary key={++instance}><Fault /></Boundary>);
 window.renderReviews = (taskId = 101) => root.render(<TaskReviewDialog key={++instance} task={{id:taskId, title:'任务 ' + taskId}} onClose={() => root.render(null)} />);
+window.renderWorkspace = () => root.render(<Workspace key={++instance} />);
 window.renderSchedule();
 `;
 const bundle = await rolldown({
@@ -42,7 +44,7 @@ const bundle = await rolldown({
     resolveId(id) {
       if (id === 'offline-entry') return '\0offline-entry.tsx';
       if (id.endsWith('.css')) return '\0empty-style';
-      if (id.endsWith('/use-shared-state') || id === './TeamAccess') return '\0fixtures.js';
+      if (id.endsWith('/use-shared-state') || id.endsWith('/TeamAccess')) return '\0fixtures.js';
     },
     load(id) {
       if (id === '\0offline-entry.tsx') return entry;
@@ -205,4 +207,36 @@ try {
   assert.equal(await page.getByRole('textbox', { name: '写下复盘' }).inputValue(), '失败时保留这段文字');
   assert.deepEqual(requests, []);
   console.log('PASS: write review, author, multiline text, empty input disabled, remount');
+  await page.evaluate(() => {
+    window.fixture['tongpin-tasks-v8'] = [];
+    window.fixture['tongpin-messages-v8'] = [];
+    window.renderWorkspace();
+  });
+  await page.locator('.create-button').click();
+  const taskForm = page.locator('.task-modal');
+  await taskForm.locator('input[name=title]').fill('七次产出任务');
+  await taskForm.locator('input[name=amount]').fill('100');
+  assert.equal(await taskForm.locator('input[name=quantity]').inputValue(), '');
+  await taskForm.getByRole('checkbox', {name:'吃吃',exact:true}).check();
+  await taskForm.getByRole('checkbox', {name:'czl',exact:true}).check();
+  await taskForm.getByRole('button', {name:'创建任务',exact:true}).click();
+  const newTask = await page.evaluate(() => window.fixture['tongpin-tasks-v8'][0]);
+  assert.equal(newTask.owner, 'xzx');
+  assert.deepEqual(newTask.assistants, ['吃吃','czl']);
+  assert.equal(newTask.quantity, null);
+  await page.locator('.lane-task').filter({hasText:'七次产出任务'}).click({button:'right'});
+  await page.getByRole('button', {name:/标记完成/}).click();
+  const completion = page.getByRole('dialog', {name:'确认实际产出'});
+  await completion.waitFor();
+  await completion.locator('input[name=quantity]').fill('7');
+  assert.match(await completion.locator('.task-billing p').textContent(), /700/);
+  await completion.getByRole('button', {name:'确认次数并完成',exact:true}).click();
+  assert.equal(await page.evaluate(() => window.fixture['tongpin-tasks-v8'][0].quantity), 7);
+  assert.equal(await page.evaluate(() => window.fixture['tongpin-tasks-v8'].length), 1);
+  await page.getByRole('button', {name:'‹ 返回人员分配',exact:true}).click();
+  await page.getByRole('button', {name:'金额',exact:true}).click();
+  const amountRows = page.locator('.amount-member-grid article');
+  assert.match(await amountRows.first().textContent(), /700/);
+  assert.match(await amountRows.nth(1).locator('header>b').textContent(), /¥0/);
+  console.log('PASS: assistants independent, quantity initially unknown, confirm seven outputs on completion, one task and 700 credited only to owner');
 } finally { await browser.close(); }
