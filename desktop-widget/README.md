@@ -1,0 +1,18 @@
+# 同频 · xzx 桌面日程组件
+
+运行 `TongpinWidget.exe` 后，日程直接嵌入 Windows 桌面右侧。普通窗口可覆盖它；返回桌面时仍然显示。沿用网站 `/desktop` 页面，每 15 秒同步 xzx 的个人日程。
+
+- 顶部圆点菜单可刷新、切换移动模式、恢复右侧位置或退出；系统托盘也有同样菜单。
+- 选择“移动位置”，拖动窗口标题栏，再点“固定到桌面”保存位置。
+- 首次使用显示网站邀请码登录。登录有效期由网站控制，过期后重新输入邀请码。
+- 组件独立保存登录状态到当前用户的 `%LOCALAPPDATA%/TongpinWidget/WebView2`。邀请码不写入源码或程序参数。
+- 不修改桌面壁纸文件、不创建浏览器快捷方式、不设置强制置顶，不自动添加开机启动。退出后桌面恢复原状。
+- Windows 桌面结构变更时如果不能嵌入，会明确显示普通窗口及失败提示；可从菜单重试“固定到桌面”。
+
+依赖 Windows 10/11 x64、.NET Framework 4.8 和 Microsoft Edge WebView2 Runtime。此电脑已具备。请保留程序旁的三个 DLL。需要迁移时复制整个文件夹。
+
+构建：运行 `node desktop-widget/build.mjs`，输出 `outputs/TongpinWidget`。WebView2 SDK 版本固定为 1.0.4191.47，从微软 NuGet 包下载，附带原许可证。
+
+实现使用 Windows `GetShellWindow`、`SetParent`、`SetWindowPos`，将本程序窗口设为桌面 Shell 的子窗口。只改变本程序窗口的父级和样式，不修改 Explorer 窗口样式。移动模式临时恢复独立窗口供交互。
+
+开发验证：`--verify` 在独立的验证资料目录中运行，写入不含任务正文、邀请码或会话的 `verification.json`，截取组件页面到 `preview.png`，验证完成后自动退出。`--signin-stdin` 仅用于可信本机初始化，从重定向标准输入读取邀请码，通过 HTTPS 登录本站；不得把邀请码放在命令参数中。
