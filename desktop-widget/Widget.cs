@@ -54,6 +54,8 @@ sealed class Widget : Form
     float scale;
     Point dragStart, bubbleStart;
     Rectangle expandedBounds;
+    Rectangle gestureBounds;
+    string gesture = "";
     IntPtr desktop;
     Rectangle desired;
     readonly JavaScriptSerializer json = new JavaScriptSerializer();
@@ -64,7 +66,7 @@ sealed class Widget : Form
         dataPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), verify ? "TongpinWidgetVerification" : "TongpinWidget");
         Directory.CreateDirectory(dataPath);
         Text = "同屏";
-        Icon = SystemIcons.Application;
+        Icon = System.Drawing.Icon.ExtractAssociatedIcon(Application.ExecutablePath);
         BackColor = Color.FromArgb(243, 245, 250);
         StartPosition = FormStartPosition.Manual;
         AutoScaleMode = AutoScaleMode.None;
@@ -167,6 +169,7 @@ sealed class Widget : Form
     void Collapse()
     {
         if (collapsed || closing) return;
+        gesture = "";
         if (!attached) Attach(true);
         if (!attached) return;
         expandedBounds = desired;
@@ -215,11 +218,39 @@ sealed class Widget : Form
     }
     void LoadPosition()
     {
-        try { var p = File.ReadAllText(Path.Combine(dataPath, "position.txt")).Split(','); desired.X = int.Parse(p[0]); desired.Y = int.Parse(p[1]); ClampPosition(); } catch { }
+        try { var p = File.ReadAllText(Path.Combine(dataPath, "position.txt")).Split(','); desired.X = int.Parse(p[0]); desired.Y = int.Parse(p[1]); if (p.Length >= 4) { desired.Width = Math.Max((int)(320 * scale), int.Parse(p[2])); desired.Height = Math.Max((int)(280 * scale), int.Parse(p[3])); } ClampPosition(); } catch { }
     }
     void SavePosition()
     {
-        try { if (!attached) desired = Bounds; Rectangle saved = collapsed ? expandedBounds : desired; File.WriteAllText(Path.Combine(dataPath, "position.txt"), saved.X + "," + saved.Y); } catch { }
+        try { if (!attached) desired = Bounds; Rectangle saved = collapsed ? expandedBounds : desired; File.WriteAllText(Path.Combine(dataPath, "position.txt"), saved.X + "," + saved.Y + "," + saved.Width + "," + saved.Height); } catch { }
+    }
+    void HandleGesture(string command)
+    {
+        if (collapsed || closing) return;
+        if (command.StartsWith("gesture-start:")) {
+            string kind = command.Substring(14);
+            if (Array.IndexOf(new[] { "move", "n", "s", "e", "w", "ne", "nw", "se", "sw" }, kind) < 0) return;
+            if (!attached) Attach(false);
+            if (!attached) return;
+            gestureBounds = desired; gesture = kind;
+        }
+        else if (command == "gesture-end") { gesture = ""; if (!verify) SavePosition(); }
+        else if (command == "gesture-cancel") { if (gesture == "") return; desired = gestureBounds; gesture = ""; PositionOnDesktop(); }
+        else if (command.StartsWith("gesture-delta:") && gesture != "") {
+            string[] parts = command.Substring(14).Split(','); int dx, dy;
+            if (parts.Length != 2 || !int.TryParse(parts[0], out dx) || !int.TryParse(parts[1], out dy) || Math.Abs((long)dx) > 32768 || Math.Abs((long)dy) > 32768) return;
+            if (gesture == "move") desired = new Rectangle(gestureBounds.X + dx, gestureBounds.Y + dy, gestureBounds.Width, gestureBounds.Height);
+            else {
+                int left = gestureBounds.Left, top = gestureBounds.Top, right = gestureBounds.Right, bottom = gestureBounds.Bottom;
+                int minimumWidth = (int)(320 * scale), minimumHeight = (int)(280 * scale);
+                if (gesture.Contains("e")) right = Math.Max(left + minimumWidth, right + dx);
+                if (gesture.Contains("w")) left = Math.Min(right - minimumWidth, left + dx);
+                if (gesture.Contains("s")) bottom = Math.Max(top + minimumHeight, bottom + dy);
+                if (gesture.Contains("n")) top = Math.Min(bottom - minimumHeight, top + dy);
+                desired = Rectangle.FromLTRB(left, top, right, bottom);
+            }
+            ClampPosition(); PositionOnDesktop();
+        }
     }
     void RoundCorners()
     {
@@ -299,6 +330,7 @@ sealed class Widget : Form
                 string command;
                 try { command = e.TryGetWebMessageAsString(); } catch { return; }
                 if (command == "ui-ready") { webToolbar = true; LayoutSurface(); }
+                else if (command.StartsWith("gesture-")) HandleGesture(command);
                 else if (command == "collapse") Collapse();
                 else if (command == "close") BeginInvoke(new Action(Close));
                 else if (command == "refresh") browser.Reload();
@@ -366,6 +398,15 @@ sealed class Widget : Form
             if (!synced) throw new InvalidOperationException("Sync not ready");
             bool embedded = attached && Native.GetParent(Handle) == Native.GetShellWindow() && (Native.GetWindowLong(Handle, -16) & 0x40000000) != 0 && (Native.GetWindowLong(Handle, -20) & 8) == 0;
             if (!embedded) throw new InvalidOperationException("Not embedded");
+            Rectangle initialBounds = desired;
+            await VerifyPointerGesture("header", -40, 10, false);
+            if (desired.X != initialBounds.X - 40 || desired.Y != initialBounds.Y + 10) throw new InvalidOperationException("Direct header drag failed");
+            await VerifyPointerGesture("[data-edge=se]", -80, -120, false);
+            if (desired.Width != initialBounds.Width - 80 || desired.Height != initialBounds.Height - 120 || Width != desired.Width || Height != desired.Height) throw new InvalidOperationException("Direct resize failed");
+            Rectangle resizedBounds = desired;
+            await VerifyPointerGesture("[data-edge=w]", -30, 0, true);
+            if (desired != resizedBounds) throw new InvalidOperationException("Resize cancellation failed");
+            desired = initialBounds; PositionOnDesktop();
             string before = await browser.ExecuteScriptAsync("document.querySelector('.desk-sync').title");
             await browser.ExecuteScriptAsync("document.querySelector('[aria-label=上一周]').click()");
             await Task.Delay(500);
@@ -389,13 +430,21 @@ sealed class Widget : Form
             if (collapsed || !browser.Visible || Size != fullSize) throw new InvalidOperationException("Expand failed");
             await browser.ExecuteScriptAsync("document.getElementById('tongpin-widget-controls').shadowRoot.getElementById('collapse').click()");
             await Task.Delay(300); bubble.PerformClick();
-            WriteStatus("verified:desktop-child,https-sync,auto-refresh,web-toolbar-rendered,web-collapse,separate-bubble-visible,expand,web-close");
+            WriteStatus("verified:direct-drag,edge-resize,escape-cancel,desktop-child,https-sync,auto-refresh,web-toolbar,collapse-expand,close");
             try { await browser.ExecuteScriptAsync("document.getElementById('tongpin-widget-controls').shadowRoot.getElementById('close').click()"); } catch { if (!closing) throw; }
             await Task.Delay(300);
             if (!closing) throw new InvalidOperationException("Close button failed");
         }
-        catch (Exception e) { WriteStatus("verification-failed:" + e.GetType().Name); Environment.ExitCode = 1; }
+        catch (Exception e) { WriteStatus("verification-failed:" + e.GetType().Name + ":" + e.Message); Environment.ExitCode = 1; }
         finally { if (!closing) Close(); }
+    }
+    async Task VerifyPointerGesture(string selector, int dx, int dy, bool cancel)
+    {
+        string script = "(()=>{let s=document.getElementById('tongpin-widget-controls').shadowRoot,t=s.querySelector(" + json.Serialize(selector) + ");" +
+            "t.dispatchEvent(new PointerEvent('pointerdown',{bubbles:true,composed:true,button:0,pointerId:88,screenX:100,screenY:100}));" +
+            "window.dispatchEvent(new PointerEvent('pointermove',{pointerId:88,screenX:100+(" + dx + ")/devicePixelRatio,screenY:100+(" + dy + ")/devicePixelRatio}));" +
+            (cancel ? "document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape'}));" : "window.dispatchEvent(new PointerEvent('pointerup',{pointerId:88}));") + "})()";
+        await browser.ExecuteScriptAsync(script); await Task.Delay(350);
     }
     void WriteStatus(string state)
     {

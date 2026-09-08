@@ -16,8 +16,9 @@ copyFileSync(join(sdk, 'runtimes', 'win-x64', 'native', 'WebView2Loader.dll'), j
 copyFileSync(join(sdk, 'LICENSE.txt'), join(output, 'WebView2-LICENSE.txt'));
 copyFileSync(join(sdk, 'NOTICE.txt'), join(output, 'WebView2-NOTICE.txt'));
 copyFileSync(join(root, 'desktop-widget', 'README.md'), join(output, '使用说明.md'));
+copyFileSync(join(root, 'desktop-widget', 'icon.ico'), join(output, 'tongpin-calendar.ico'));
 execFileSync(join(process.env.WINDIR, 'Microsoft.NET', 'Framework64', 'v4.0.30319', 'csc.exe'), [
-  '/nologo', '/target:winexe', '/platform:x64', '/optimize+', '/win32manifest:desktop-widget\\app.manifest', '/resource:desktop-widget\\widget-ui.js,WidgetUI',
+  '/nologo', '/target:winexe', '/platform:x64', '/optimize+', '/win32manifest:desktop-widget\\app.manifest', '/win32icon:desktop-widget\\icon.ico', '/resource:desktop-widget\\widget-ui.js,WidgetUI',
   '/out:outputs\\TongpinWidget\\TongpinWidget.exe', ...['System.dll','System.Core.dll','System.Drawing.dll','System.Windows.Forms.dll','System.Net.Http.dll','System.Web.Extensions.dll','outputs\\TongpinWidget\\Microsoft.Web.WebView2.Core.dll','outputs\\TongpinWidget\\Microsoft.Web.WebView2.WinForms.dll'].map(name => '/reference:' + name), 'desktop-widget\\Widget.cs'
 ], { cwd: root, stdio: 'inherit', windowsHide: true });
 console.log('Built: ' + join(output, 'TongpinWidget.exe'));
