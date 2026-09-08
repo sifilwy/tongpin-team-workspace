@@ -2,6 +2,8 @@
 
 运行 `TongpinWidget.exe` 后，日程直接嵌入 Windows 桌面右侧。普通窗口可覆盖它；返回桌面时仍然显示。沿用网站 `/desktop` 页面，每 15 秒同步 xzx 的个人日程。
 
+关闭后重新打开：按 Win + R，输入 `%LOCALAPPDATA%\TongpinWidget\App` 并回车，然后双击 `TongpinWidget.exe`。登录状态会保留到网站会话到期。
+
 - 右上角 **−** 将日程收起为蓝色笑脸圆点；**×** 直接退出组件。
 - 点击笑脸圆点展开原来的日程，拖动可移动圆点，右键菜单可以展开或退出。圆点使用独立的小窗口，收起时隐藏日程窗口；展开时回到日程原来的位置和大小。
 - 顶部 **•••** 菜单可刷新、切换移动模式、恢复右侧位置或退出；系统托盘也有同样菜单。
@@ -16,5 +18,7 @@
 构建：运行 `node desktop-widget/build.mjs`，输出 `outputs/TongpinWidget`。WebView2 SDK 版本固定为 1.0.4191.47，从微软 NuGet 包下载，附带原许可证。
 
 实现使用 Windows `GetShellWindow`、`SetParent`、`SetWindowPos`，将本程序窗口设为桌面 Shell 的子窗口。只改变本程序窗口的父级和样式，不修改 Explorer 窗口样式。移动模式临时恢复独立窗口供交互。
+
+标题栏按钮由内嵌的 `widget-ui.js` 和日程在同一 WebView2 表面绘制，避免独立 WinForms 控件在桌面父窗口中变黑。按钮消息仅接受本站 `/desktop` 的固定操作：收起、关闭、刷新、移动及恢复位置。
 
 开发验证：`--verify` 在独立的验证资料目录中运行，写入不含任务正文、邀请码或会话的 `verification.json`，截取组件页面到 `preview.png`，验证完成后自动退出。`--signin-stdin` 仅用于可信本机初始化，从重定向标准输入读取邀请码，通过 HTTPS 登录本站；不得把邀请码放在命令参数中。

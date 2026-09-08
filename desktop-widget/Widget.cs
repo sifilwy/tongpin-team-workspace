@@ -50,7 +50,7 @@ sealed class Widget : Form
     readonly Form bubbleWindow = new Form();
     readonly ToolTip tips = new ToolTip();
     readonly System.Windows.Forms.Timer recovery = new System.Windows.Forms.Timer();
-    bool attached, closing, testing, collapsed, bubbleDragged;
+    bool attached, closing, testing, collapsed, bubbleDragged, webToolbar;
     float scale;
     Point dragStart, bubbleStart;
     Rectangle expandedBounds;
@@ -149,7 +149,8 @@ sealed class Widget : Form
     void LayoutSurface()
     {
         if (header == null || browser == null) return;
-        int barHeight = (int)(36 * scale);
+        int barHeight = webToolbar ? 0 : (int)(36 * scale);
+        header.Visible = !webToolbar;
         header.SetBounds(0, 0, ClientSize.Width, barHeight);
         browser.SetBounds(0, barHeight, ClientSize.Width, Math.Max(1, ClientSize.Height - barHeight));
         header.BringToFront();
@@ -292,8 +293,20 @@ sealed class Widget : Form
             core.NewWindowRequested += delegate(object sender, CoreWebView2NewWindowRequestedEventArgs e) { e.Handled = true; /* Workspace editing is available in the user's normal browser. */ };
             core.NavigationStarting += delegate(object sender, CoreWebView2NavigationStartingEventArgs e) { Uri uri; if (!Uri.TryCreate(e.Uri, UriKind.Absolute, out uri) || uri.Scheme != "https" || uri.Host != "yanxue-sync.top") e.Cancel = true; };
             core.ProcessFailed += delegate { status.Text = "页面已停止 · 菜单可刷新"; WriteStatus("renderer-failed"); };
-            // Compact only this embedded copy; keep the normal website unchanged.
-            await core.AddScriptToExecuteOnDocumentCreatedAsync("document.addEventListener('DOMContentLoaded',()=>{let s=document.createElement('style');s.textContent='body .desktop-agenda{padding:12px 16px 18px;min-height:100vh}body .desk-header{display:none}body .desk-top{margin-top:0}body .desk-footer a{display:none}::-webkit-scrollbar{width:4px}::-webkit-scrollbar-thumb{background:#bdcbe1;border-radius:5px}';document.head.append(s)})");
+            core.WebMessageReceived += delegate(object sender, CoreWebView2WebMessageReceivedEventArgs e) {
+                Uri source;
+                if (!Uri.TryCreate(e.Source, UriKind.Absolute, out source) || source.GetLeftPart(UriPartial.Authority) != Origin || source.AbsolutePath != "/desktop") return;
+                string command;
+                try { command = e.TryGetWebMessageAsString(); } catch { return; }
+                if (command == "ui-ready") { webToolbar = true; LayoutSurface(); }
+                else if (command == "collapse") Collapse();
+                else if (command == "close") BeginInvoke(new Action(Close));
+                else if (command == "refresh") browser.Reload();
+                else if (command == "move") { if (collapsed) Expand(); if (attached) Detach(); else Attach(true); core.PostWebMessageAsString(attached ? "attached" : "detached"); }
+                else if (command == "reset") { if (collapsed) Expand(); if (!attached) Attach(false); var area = Screen.PrimaryScreen.WorkingArea; desired = new Rectangle(area.Right - Width - 22, area.Top + 24, Width, Math.Min(Height, area.Height - 48)); Attach(true); }
+            };
+            using (var stream = System.Reflection.Assembly.GetExecutingAssembly().GetManifestResourceStream("WidgetUI"))
+            using (var reader = new StreamReader(stream, Encoding.UTF8)) await core.AddScriptToExecuteOnDocumentCreatedAsync(reader.ReadToEnd());
             if (!string.IsNullOrEmpty(signInCode)) {
                 try { await SignIn(signInCode); }
                 catch { status.Text = "登录未完成 · 请在下方输入邀请码"; }
@@ -366,23 +379,19 @@ sealed class Widget : Form
             Attach(false);
             if (!attached) throw new InvalidOperationException("Reattach failed");
             var fullSize = Size;
-            // Exercise the actual controls, including hit testing in the title bar.
-            foreach (Button button in new[] { collapseButton, closeButton }) {
-                var center = new Point(button.Left + button.Width / 2, button.Top + button.Height / 2);
-                if (header.GetChildAtPoint(center) != button) throw new InvalidOperationException("Header control obstructed");
-                if (GetChildAtPoint(new Point(header.Left + center.X, header.Top + center.Y)) != header) throw new InvalidOperationException("Header covered by web view");
-            }
-            if (browser.Top < header.Bottom) throw new InvalidOperationException("Web view overlaps header");
-            using (var bitmap = new Bitmap(header.Width, header.Height)) { header.DrawToBitmap(bitmap, header.ClientRectangle); bitmap.Save(Path.Combine(dataPath, "header.png")); }
-            collapseButton.PerformClick();
+            if (!webToolbar || header.Visible || browser.Top != 0) throw new InvalidOperationException("Native header still visible");
+            if (await browser.ExecuteScriptAsync("(()=>{let h=document.getElementById('tongpin-widget-controls'),s=h.shadowRoot;return ['collapse','close'].every(id=>{let b=s.getElementById(id),r=b.getBoundingClientRect();return r.width>=36 && r.height>=30 && s.elementFromPoint(r.x+r.width/2,r.y+r.height/2)===b})})()") != "true") throw new InvalidOperationException("Web controls obstructed");
+            await browser.ExecuteScriptAsync("document.getElementById('tongpin-widget-controls').shadowRoot.getElementById('collapse').click()");
             await Task.Delay(1000);
             if (!collapsed || Visible || bubbleWindow.Width != (int)(54 * scale) || !bubbleWindow.Visible || Native.GetParent(bubbleWindow.Handle) != desktop) throw new InvalidOperationException("Collapse failed");
             using (var bitmap = new Bitmap(bubble.Width, bubble.Height)) { bubble.DrawToBitmap(bitmap, bubble.ClientRectangle); bitmap.Save(Path.Combine(dataPath, "bubble.png")); }
             bubble.PerformClick();
             if (collapsed || !browser.Visible || Size != fullSize) throw new InvalidOperationException("Expand failed");
-            collapseButton.PerformClick(); bubble.PerformClick();
-            WriteStatus("verified:desktop-child,https-sync,auto-refresh,detach-reattach,header-not-covered,separate-bubble-visible,expand,close-button");
-            closeButton.PerformClick();
+            await browser.ExecuteScriptAsync("document.getElementById('tongpin-widget-controls').shadowRoot.getElementById('collapse').click()");
+            await Task.Delay(300); bubble.PerformClick();
+            WriteStatus("verified:desktop-child,https-sync,auto-refresh,web-toolbar-rendered,web-collapse,separate-bubble-visible,expand,web-close");
+            try { await browser.ExecuteScriptAsync("document.getElementById('tongpin-widget-controls').shadowRoot.getElementById('close').click()"); } catch { if (!closing) throw; }
+            await Task.Delay(300);
             if (!closing) throw new InvalidOperationException("Close button failed");
         }
         catch (Exception e) { WriteStatus("verification-failed:" + e.GetType().Name); Environment.ExitCode = 1; }
