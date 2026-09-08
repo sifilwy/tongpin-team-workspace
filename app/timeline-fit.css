@@ -65,10 +65,21 @@
   font-size: 11px;
 }
 
+.calendar-card .calendar-people {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+  white-space: nowrap;
+}
+
+.calendar-card .calendar-owner {
+  flex-shrink: 0;
+}
+
 .calendar-card .calendar-assistants {
-  margin-top: 5px;
   color: #61558b;
-  line-height: 1.5;
-  white-space: normal;
-  overflow-wrap: anywhere;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
