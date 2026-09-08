@@ -43,8 +43,16 @@ sealed class Widget : Form
     readonly ContextMenuStrip menu = new ContextMenuStrip();
     readonly ToolStripMenuItem positionItem = new ToolStripMenuItem("移动位置");
     readonly Label status = new Label();
+    readonly Panel header = new Panel();
+    readonly Button collapseButton = new Button();
+    readonly Button closeButton = new Button();
+    readonly PetButton bubble = new PetButton();
+    readonly ToolTip tips = new ToolTip();
     readonly System.Windows.Forms.Timer recovery = new System.Windows.Forms.Timer();
-    bool attached, closing, testing;
+    bool attached, closing, testing, collapsed, bubbleDragged;
+    float scale;
+    Point dragStart, bubbleStart;
+    Rectangle expandedBounds;
     IntPtr desktop;
     Rectangle desired;
     readonly JavaScriptSerializer json = new JavaScriptSerializer();
@@ -62,14 +70,13 @@ sealed class Widget : Form
         FormBorderStyle = FormBorderStyle.None;
         ShowInTaskbar = false;
         var working = Screen.PrimaryScreen.WorkingArea;
-        float scale;
         using (var g = CreateGraphics()) scale = g.DpiX / 96f;
         int width = Math.Min((int)(410 * scale), working.Width - 40);
         int height = Math.Min((int)(820 * scale), working.Height - 48);
         desired = new Rectangle(working.Right - width - 22, working.Top + 24, width, height);
         if (!verify) LoadPosition();
         Bounds = desired;
-        var header = new Panel { Dock = DockStyle.Top, Height = (int)(26 * scale), BackColor = Color.FromArgb(232, 238, 249) };
+        header.Dock = DockStyle.Top; header.Height = (int)(30 * scale); header.BackColor = Color.FromArgb(232, 238, 249);
         status.Text = "同屏";
         status.Font = new Font("Microsoft YaHei UI", 9);
         status.ForeColor = Color.FromArgb(102, 119, 148);
@@ -79,29 +86,88 @@ sealed class Widget : Form
         actions.FlatAppearance.BorderSize = 0;
         actions.AccessibleName = "日程组件菜单";
         actions.Click += delegate { menu.Show(actions, new Point(0, actions.Height)); };
-        header.Controls.Add(status); header.Controls.Add(actions);
+        SetupHeaderButton(collapseButton, "−", "收起为小圆点");
+        SetupHeaderButton(closeButton, "×", "关闭日程组件");
+        collapseButton.Click += delegate { Collapse(); };
+        closeButton.Click += delegate { Close(); };
+        closeButton.FlatAppearance.MouseOverBackColor = Color.FromArgb(248, 210, 212);
+        header.Controls.Add(status); header.Controls.Add(actions); header.Controls.Add(collapseButton); header.Controls.Add(closeButton);
         browser.Dock = DockStyle.Fill;
         browser.DefaultBackgroundColor = BackColor;
         Controls.Add(browser); Controls.Add(header);
+        bubble.Dock = DockStyle.Fill; bubble.Visible = false;
+        bubble.AccessibleName = "展开日程";
+        bubble.ContextMenuStrip = menu;
+        tips.SetToolTip(bubble, "点击展开日程 · 拖动移动 · 右键退出");
+        bubble.Click += delegate { if (!bubbleDragged) Expand(); };
+        bubble.MouseDown += delegate(object sender, MouseEventArgs e) { if (e.Button != MouseButtons.Left) return; bubbleDragged = false; dragStart = Cursor.Position; bubbleStart = desired.Location; bubble.Capture = true; };
+        bubble.MouseMove += delegate(object sender, MouseEventArgs e) {
+            if (!bubble.Capture || e.Button != MouseButtons.Left || !collapsed) return;
+            Point delta = new Point(Cursor.Position.X - dragStart.X, Cursor.Position.Y - dragStart.Y);
+            if (Math.Abs(delta.X) + Math.Abs(delta.Y) > 5 * scale) bubbleDragged = true;
+            if (bubbleDragged) { desired.Location = new Point(bubbleStart.X + delta.X, bubbleStart.Y + delta.Y); ClampPosition(); PositionOnDesktop(); }
+        };
+        bubble.MouseUp += delegate { bubble.Capture = false; };
+        Controls.Add(bubble);
+        menu.Items.Add("展开日程", null, delegate { Expand(); });
+        menu.Items.Add("收起为小圆点", null, delegate { Collapse(); });
         menu.Items.Add("刷新日程", null, delegate { if (browser.CoreWebView2 != null) browser.Reload(); });
-        positionItem.Click += delegate { if (attached) Detach(); else Attach(true); };
+        positionItem.Click += delegate { if (collapsed) Expand(); if (attached) Detach(); else Attach(true); };
         menu.Items.Add(positionItem);
-        menu.Items.Add("恢复右侧位置", null, delegate { if (!attached) Attach(false); var area = Screen.PrimaryScreen.WorkingArea; desired = new Rectangle(area.Right - Width - 22, area.Top + 24, Width, Math.Min(Height, area.Height - 48)); Attach(true); });
+        menu.Items.Add("恢复右侧位置", null, delegate { if (collapsed) Expand(); if (!attached) Attach(false); var area = Screen.PrimaryScreen.WorkingArea; desired = new Rectangle(area.Right - Width - 22, area.Top + 24, Width, Math.Min(Height, area.Height - 48)); Attach(true); });
         menu.Items.Add(new ToolStripSeparator());
         menu.Items.Add("退出组件", null, delegate { Close(); });
         tray.Text = "同屏";
         tray.Icon = Icon;
         tray.ContextMenuStrip = menu;
         tray.Visible = true;
-        tray.DoubleClick += delegate { if (attached) Detach(); else Activate(); };
+        tray.DoubleClick += delegate { if (collapsed) Expand(); else if (attached) Detach(); else Activate(); };
         recovery.Interval = 5000;
         recovery.Tick += delegate { if (attached && (!Native.IsWindow(desktop) || Native.GetParent(Handle) != desktop)) Attach(false); };
         Shown += async delegate { Attach(false); recovery.Start(); await InitializeBrowser(); };
         FormClosing += delegate { closing = true; recovery.Stop(); if (!verify) SavePosition(); tray.Visible = false; };
-        FormClosed += delegate { browser.Dispose(); tray.Dispose(); menu.Dispose(); recovery.Dispose(); };
+        FormClosed += delegate { browser.Dispose(); tray.Dispose(); menu.Dispose(); recovery.Dispose(); tips.Dispose(); };
         Resize += delegate { RoundCorners(); };
         Microsoft.Win32.SystemEvents.DisplaySettingsChanged += DisplayChanged;
         FormClosed += delegate { Microsoft.Win32.SystemEvents.DisplaySettingsChanged -= DisplayChanged; };
+    }
+
+    void SetupHeaderButton(Button button, string label, string name)
+    {
+        button.Text = label; button.AccessibleName = name;
+        button.Dock = DockStyle.Right; button.Width = (int)(32 * scale);
+        button.FlatStyle = FlatStyle.Flat; button.FlatAppearance.BorderSize = 0;
+        button.Font = new Font("Segoe UI", 13); button.ForeColor = status.ForeColor; button.BackColor = header.BackColor;
+        tips.SetToolTip(button, name);
+    }
+    void Collapse()
+    {
+        if (collapsed || closing) return;
+        if (!attached) Attach(true);
+        if (!attached) return;
+        expandedBounds = desired;
+        collapsed = true;
+        MinimumSize = Size.Empty;
+        int diameter = (int)(54 * scale);
+        desired = new Rectangle(expandedBounds.Right - diameter, expandedBounds.Top, diameter, diameter);
+        browser.Visible = false; header.Visible = false; bubble.Visible = true; bubble.BringToFront();
+        ClampPosition(); PositionOnDesktop(); RoundCorners();
+        WriteStatus("collapsed");
+    }
+    void Expand()
+    {
+        if (!collapsed || closing) return;
+        collapsed = false;
+        desired = expandedBounds;
+        bubble.Visible = false; browser.Visible = true; header.Visible = true;
+        ClampPosition(); PositionOnDesktop(); RoundCorners();
+        WriteStatus("expanded");
+    }
+    void PositionOnDesktop()
+    {
+        var point = new Native.Point { X = desired.X, Y = desired.Y };
+        Native.ScreenToClient(desktop, ref point);
+        Native.SetWindowPos(Handle, IntPtr.Zero, point.X, point.Y, desired.Width, desired.Height, 0x0010 | 0x0020 | 0x0040);
     }
 
     void DisplayChanged(object sender, EventArgs e)
@@ -122,7 +188,7 @@ sealed class Widget : Form
     }
     void SavePosition()
     {
-        try { if (!attached) desired = Bounds; File.WriteAllText(Path.Combine(dataPath, "position.txt"), desired.X + "," + desired.Y); } catch { }
+        try { if (!attached) desired = Bounds; Rectangle saved = collapsed ? expandedBounds : desired; File.WriteAllText(Path.Combine(dataPath, "position.txt"), saved.X + "," + saved.Y); } catch { }
     }
     void RoundCorners()
     {
@@ -130,9 +196,12 @@ sealed class Widget : Form
         Region old = Region;
         if (!attached) Region = null;
         else using (var path = new GraphicsPath()) {
+            if (collapsed) { path.AddEllipse(0, 0, Width, Height); }
+            else {
             int d = 28;
             path.AddArc(0, 0, d, d, 180, 90); path.AddArc(Width-d, 0, d, d, 270, 90);
             path.AddArc(Width-d, Height-d, d, d, 0, 90); path.AddArc(0, Height-d, d, d, 90, 90); path.CloseFigure();
+            }
             Region = new Region(path);
         }
         if (old != null) old.Dispose();
@@ -266,16 +335,47 @@ sealed class Widget : Form
             if (Native.GetParent(Handle) != IntPtr.Zero) throw new InvalidOperationException("Detach failed");
             Attach(false);
             if (!attached) throw new InvalidOperationException("Reattach failed");
-            WriteStatus("verified:desktop-child,no-topmost,https-sync,week-navigation,auto-refresh,detach-reattach");
+            var fullSize = Size;
+            // Exercise the actual controls, including hit testing in the title bar.
+            foreach (Button button in new[] { collapseButton, closeButton }) {
+                var center = new Point(button.Left + button.Width / 2, button.Top + button.Height / 2);
+                if (header.GetChildAtPoint(center) != button) throw new InvalidOperationException("Header control obstructed");
+            }
+            collapseButton.PerformClick();
+            if (!collapsed || browser.Visible || Width != (int)(54 * scale) || !bubble.Visible) throw new InvalidOperationException("Collapse failed");
+            using (var bitmap = new Bitmap(Width, Height)) { bubble.DrawToBitmap(bitmap, new Rectangle(Point.Empty, Size)); bitmap.Save(Path.Combine(dataPath, "bubble.png")); }
+            bubble.PerformClick();
+            if (collapsed || !browser.Visible || Size != fullSize) throw new InvalidOperationException("Expand failed");
+            collapseButton.PerformClick(); bubble.PerformClick();
+            WriteStatus("verified:desktop-child,https-sync,auto-refresh,detach-reattach,header-hit-test,collapse-bubble-expand,close-button");
+            closeButton.PerformClick();
+            if (!closing) throw new InvalidOperationException("Close button failed");
         }
         catch (Exception e) { WriteStatus("verification-failed:" + e.GetType().Name); Environment.ExitCode = 1; }
-        finally { Close(); }
+        finally { if (!closing) Close(); }
     }
     void WriteStatus(string state)
     {
         try {
-            File.WriteAllText(Path.Combine(dataPath, verify ? "verification.json" : "status.json"), json.Serialize(new { state = state, attached = attached, parentClass = Native.ClassName(Native.GetParent(Handle)), topmost = (Native.GetWindowLong(Handle, -20) & 8) != 0, width = Width, height = Height, timestamp = DateTimeOffset.Now.ToString("o") }));
+            File.WriteAllText(Path.Combine(dataPath, verify ? "verification.json" : "status.json"), json.Serialize(new { state = state, attached = attached, collapsed = collapsed, parentClass = Native.ClassName(Native.GetParent(Handle)), topmost = (Native.GetWindowLong(Handle, -20) & 8) != 0, width = Width, height = Height, timestamp = DateTimeOffset.Now.ToString("o") }));
         } catch { }
+    }
+}
+
+sealed class PetButton : Button
+{
+    public PetButton() { FlatStyle = FlatStyle.Flat; FlatAppearance.BorderSize = 0; Cursor = Cursors.Hand; SetStyle(ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer, true); }
+    protected override void OnPaint(PaintEventArgs e)
+    {
+        var g = e.Graphics; g.SmoothingMode = SmoothingMode.AntiAlias;
+        float size = Math.Min(Width, Height);
+        using (var fill = new LinearGradientBrush(ClientRectangle, Color.FromArgb(114, 153, 224), Color.FromArgb(62, 98, 167), 65f)) g.FillEllipse(fill, 0, 0, size - 1, size - 1);
+        using (var eye = new SolidBrush(Color.White)) {
+            g.FillEllipse(eye, size * .31f, size * .35f, size * .075f, size * .13f);
+            g.FillEllipse(eye, size * .61f, size * .35f, size * .075f, size * .13f);
+        }
+        using (var smile = new Pen(Color.FromArgb(234, 242, 255), size * .035f)) { smile.StartCap = smile.EndCap = LineCap.Round; g.DrawArc(smile, size * .39f, size * .48f, size * .23f, size * .15f, 5, 170); }
+        if (Focused) using (var ring = new Pen(Color.FromArgb(200, 221, 255), 2)) g.DrawEllipse(ring, 3, 3, size - 7, size - 7);
     }
 }
 
