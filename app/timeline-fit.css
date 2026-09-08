@@ -64,3 +64,11 @@
 .calendar-card small {
   font-size: 11px;
 }
+
+.calendar-card .calendar-assistants {
+  margin-top: 5px;
+  color: #61558b;
+  line-height: 1.5;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
