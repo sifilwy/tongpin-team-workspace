@@ -70,7 +70,7 @@
 .personal-card time{white-space:nowrap}
 .personal-card{grid-template-columns:minmax(0,1fr);container-type:size;container-name:personal-event}
 .personal-card time,.personal-card small{grid-column:1}
-.personal-card-summary{display:none;color:#394052;white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.5;font-size:14px;text-align:left}
+.personal-card-summary{display:none;color:#394052;white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.5;font-size:9px;text-align:left}
 @container personal-event (min-width:120px) and (min-height:120px){
   .personal-card-summary{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:3;overflow:hidden;margin-top:5px}
 }
