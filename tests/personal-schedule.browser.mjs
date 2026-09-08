@@ -5,6 +5,7 @@ import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { rolldown } from 'rolldown';
 import ts from 'typescript';
+import { readFileSync, mkdirSync } from 'node:fs';
 const require = createRequire(import.meta.url);
 const { chromium } = require(process.env.PLAYWRIGHT_MODULE_PATH || 'playwright');
 const project = fileURLToPath(new URL('../', import.meta.url)).replaceAll('\\', '/');
@@ -27,12 +28,14 @@ import Boundary from '${project}app/components/ScheduleBoundary.tsx';
 import ReviewNotes from '${project}app/components/ReviewNotes.tsx';
 import TaskReviewDialog from '${project}app/components/TaskReviewDialog.tsx';
 import Workspace from '${project}app/page.tsx';
+import DesktopAgenda from '${project}app/desktop/page.tsx';
 const root = createRoot(document.getElementById('root'));
 let instance = 0;
 function Fault() { if (window.failSchedule) throw new Error('Expected regression fault'); return <Schedule />; }
 window.renderSchedule = () => root.render(<Boundary key={++instance}><Fault /></Boundary>);
 window.renderReviews = (taskId = 101) => root.render(<TaskReviewDialog key={++instance} task={{id:taskId, title:'任务 ' + taskId}} onClose={() => root.render(null)} />);
 window.renderWorkspace = () => root.render(<Workspace key={++instance} />);
+window.renderDesktop = () => root.render(<DesktopAgenda key={++instance} />);
 window.renderSchedule();
 `;
 const bundle = await rolldown({
@@ -239,4 +242,37 @@ try {
   assert.match(await amountRows.first().textContent(), /700/);
   assert.match(await amountRows.nth(1).locator('header>b').textContent(), /¥0/);
   console.log('PASS: assistants independent, quantity initially unknown, confirm seven outputs on completion, one task and 700 credited only to owner');
+  await page.setViewportSize({width:460,height:960});
+  await page.addStyleTag({content:readFileSync(new URL('../app/desktop/desktop.css',import.meta.url),'utf8')});
+  await page.evaluate(() => {
+    const date = new Date();
+    const due = `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`;
+    window.desktopData = [
+      {id:1,owner:'xzx',title:'整理今日咨询记录',due,startTime:'09:00',endTime:'10:00',category:'咨询',done:true},
+      {id:2,owner:'xzx',title:'准备下一次团队沟通',due,startTime:'14:00',endTime:'15:30',category:'协作',done:false},
+      {id:3,owner:'xzx',title:'阅读与学习',due,startTime:'21:00',endTime:'22:00',category:'个人',done:false},
+      {id:4,owner:'czl',title:'其他成员不应显示',due,startTime:'14:00',endTime:'15:00',category:'个人',done:false},
+      {id:5,owner:'xzx',title:'记录一个新的想法',due:null,category:'个人',done:false},
+    ];
+    window.desktopWrites = 0;
+    window.fetch = async (_url, options) => {
+      if (options?.method && options.method!=='GET') window.desktopWrites++;
+      return Response.json({document:{revision:1,value:window.desktopData}});
+    };
+    window.renderDesktop();
+  });
+  await page.locator('.desk-events li').first().waitFor();
+  assert.equal(await page.locator('.desk-events li').count(),3);
+  assert.equal(await page.getByText('其他成员不应显示').count(),0);
+  assert.equal(await page.evaluate(()=>window.desktopWrites),0);
+  mkdirSync(new URL('../work/',import.meta.url),{recursive:true});
+  await page.screenshot({path:fileURLToPath(new URL('../work/desktop-preview.png',import.meta.url)),fullPage:true});
+  await page.getByRole('button',{name:'下一周',exact:true}).click();
+  await page.getByText('这一天还没有安排',{exact:true}).waitFor();
+  await page.getByRole('button',{name:'今天',exact:true}).click();
+  assert.equal(await page.locator('.desk-events li').count(),3);
+  await page.evaluate(()=>{window.desktopData.push({id:6,owner:'xzx',title:'同步新增任务',due:window.desktopData[0].due,startTime:'18:00',endTime:'19:00',category:'同步',done:false});});
+  await page.locator('.desk-events').getByText('同步新增任务',{exact:true}).waitFor({timeout:20000});
+  assert.equal(await page.evaluate(()=>window.desktopWrites),0);
+  console.log('PASS: desktop shows only xzx, date navigation, pending tasks and automatic read-only refresh');
 } finally { await browser.close(); }
