@@ -47,6 +47,7 @@ sealed class Widget : Form
     readonly Button collapseButton = new Button();
     readonly Button closeButton = new Button();
     readonly PetButton bubble = new PetButton();
+    readonly Form bubbleWindow = new Form();
     readonly ToolTip tips = new ToolTip();
     readonly System.Windows.Forms.Timer recovery = new System.Windows.Forms.Timer();
     bool attached, closing, testing, collapsed, bubbleDragged;
@@ -76,7 +77,7 @@ sealed class Widget : Form
         desired = new Rectangle(working.Right - width - 22, working.Top + 24, width, height);
         if (!verify) LoadPosition();
         Bounds = desired;
-        header.Dock = DockStyle.Top; header.Height = (int)(30 * scale); header.BackColor = Color.FromArgb(232, 238, 249);
+        header.Dock = DockStyle.None; header.Height = (int)(36 * scale); header.BackColor = Color.FromArgb(232, 238, 249);
         status.Text = "同屏";
         status.Font = new Font("Microsoft YaHei UI", 9);
         status.ForeColor = Color.FromArgb(102, 119, 148);
@@ -92,10 +93,17 @@ sealed class Widget : Form
         closeButton.Click += delegate { Close(); };
         closeButton.FlatAppearance.MouseOverBackColor = Color.FromArgb(248, 210, 212);
         header.Controls.Add(status); header.Controls.Add(actions); header.Controls.Add(collapseButton); header.Controls.Add(closeButton);
-        browser.Dock = DockStyle.Fill;
+        browser.Dock = DockStyle.None;
         browser.DefaultBackgroundColor = BackColor;
         Controls.Add(browser); Controls.Add(header);
-        bubble.Dock = DockStyle.Fill; bubble.Visible = false;
+        bubbleWindow.FormBorderStyle = FormBorderStyle.None;
+        bubbleWindow.AutoScaleMode = AutoScaleMode.None;
+        bubbleWindow.StartPosition = FormStartPosition.Manual;
+        bubbleWindow.ShowInTaskbar = false;
+        bubbleWindow.Text = "同屏 · 点击展开";
+        bubbleWindow.BackColor = Color.FromArgb(75, 112, 181);
+        bubbleWindow.ClientSize = new Size((int)(54 * scale), (int)(54 * scale));
+        bubble.Dock = DockStyle.Fill;
         bubble.AccessibleName = "展开日程";
         bubble.ContextMenuStrip = menu;
         tips.SetToolTip(bubble, "点击展开日程 · 拖动移动 · 右键退出");
@@ -108,7 +116,8 @@ sealed class Widget : Form
             if (bubbleDragged) { desired.Location = new Point(bubbleStart.X + delta.X, bubbleStart.Y + delta.Y); ClampPosition(); PositionOnDesktop(); }
         };
         bubble.MouseUp += delegate { bubble.Capture = false; };
-        Controls.Add(bubble);
+        bubbleWindow.Controls.Add(bubble);
+        using (var circle = new GraphicsPath()) { circle.AddEllipse(bubbleWindow.ClientRectangle); bubbleWindow.Region = new Region(circle); }
         menu.Items.Add("展开日程", null, delegate { Expand(); });
         menu.Items.Add("收起为小圆点", null, delegate { Collapse(); });
         menu.Items.Add("刷新日程", null, delegate { if (browser.CoreWebView2 != null) browser.Reload(); });
@@ -123,21 +132,35 @@ sealed class Widget : Form
         tray.Visible = true;
         tray.DoubleClick += delegate { if (collapsed) Expand(); else if (attached) Detach(); else Activate(); };
         recovery.Interval = 5000;
-        recovery.Tick += delegate { if (attached && (!Native.IsWindow(desktop) || Native.GetParent(Handle) != desktop)) Attach(false); };
+        recovery.Tick += delegate {
+            if (attached && (!Native.IsWindow(desktop) || Native.GetParent(Handle) != desktop)) { if (collapsed) Expand(); Attach(false); }
+            if (collapsed && Native.GetParent(bubbleWindow.Handle) != desktop) AttachBubble();
+            if (!verify && !closing) WriteStatus(collapsed ? "collapsed" : "running");
+        };
         Shown += async delegate { Attach(false); recovery.Start(); await InitializeBrowser(); };
-        FormClosing += delegate { closing = true; recovery.Stop(); if (!verify) SavePosition(); tray.Visible = false; };
-        FormClosed += delegate { browser.Dispose(); tray.Dispose(); menu.Dispose(); recovery.Dispose(); tips.Dispose(); };
-        Resize += delegate { RoundCorners(); };
+        FormClosing += delegate(object sender, FormClosingEventArgs e) { closing = true; recovery.Stop(); if (!verify) { SavePosition(); WriteStatus("closed:" + e.CloseReason); } tray.Visible = false; };
+        FormClosed += delegate { bubbleWindow.Dispose(); browser.Dispose(); tray.Dispose(); menu.Dispose(); recovery.Dispose(); tips.Dispose(); };
+        Resize += delegate { LayoutSurface(); RoundCorners(); };
+        LayoutSurface();
         Microsoft.Win32.SystemEvents.DisplaySettingsChanged += DisplayChanged;
         FormClosed += delegate { Microsoft.Win32.SystemEvents.DisplaySettingsChanged -= DisplayChanged; };
+    }
+
+    void LayoutSurface()
+    {
+        if (header == null || browser == null) return;
+        int barHeight = (int)(36 * scale);
+        header.SetBounds(0, 0, ClientSize.Width, barHeight);
+        browser.SetBounds(0, barHeight, ClientSize.Width, Math.Max(1, ClientSize.Height - barHeight));
+        header.BringToFront();
     }
 
     void SetupHeaderButton(Button button, string label, string name)
     {
         button.Text = label; button.AccessibleName = name;
-        button.Dock = DockStyle.Right; button.Width = (int)(32 * scale);
+        button.Dock = DockStyle.Right; button.Width = (int)(40 * scale);
         button.FlatStyle = FlatStyle.Flat; button.FlatAppearance.BorderSize = 0;
-        button.Font = new Font("Segoe UI", 13); button.ForeColor = status.ForeColor; button.BackColor = header.BackColor;
+        button.Font = new Font("Segoe UI", 15, FontStyle.Bold); button.ForeColor = Color.FromArgb(35, 53, 88); button.BackColor = Color.FromArgb(221, 231, 249);
         tips.SetToolTip(button, name);
     }
     void Collapse()
@@ -147,11 +170,10 @@ sealed class Widget : Form
         if (!attached) return;
         expandedBounds = desired;
         collapsed = true;
-        MinimumSize = Size.Empty;
         int diameter = (int)(54 * scale);
         desired = new Rectangle(expandedBounds.Right - diameter, expandedBounds.Top, diameter, diameter);
-        browser.Visible = false; header.Visible = false; bubble.Visible = true; bubble.BringToFront();
-        ClampPosition(); PositionOnDesktop(); RoundCorners();
+        ClampPosition(); AttachBubble();
+        Hide();
         WriteStatus("collapsed");
     }
     void Expand()
@@ -159,20 +181,28 @@ sealed class Widget : Form
         if (!collapsed || closing) return;
         collapsed = false;
         desired = expandedBounds;
-        bubble.Visible = false; browser.Visible = true; header.Visible = true;
-        ClampPosition(); PositionOnDesktop(); RoundCorners();
+        bubbleWindow.Hide();
+        ClampPosition(); PositionOnDesktop(); Show(); LayoutSurface(); RoundCorners();
         WriteStatus("expanded");
+    }
+    void AttachBubble()
+    {
+        int style = Native.GetWindowLong(bubbleWindow.Handle, -16);
+        Native.SetWindowLong(bubbleWindow.Handle, -16, (style & ~unchecked((int)0x80000000)) | 0x40000000);
+        Native.SetParent(bubbleWindow.Handle, desktop);
+        bubbleWindow.Show();
+        PositionOnDesktop();
     }
     void PositionOnDesktop()
     {
         var point = new Native.Point { X = desired.X, Y = desired.Y };
         Native.ScreenToClient(desktop, ref point);
-        Native.SetWindowPos(Handle, IntPtr.Zero, point.X, point.Y, desired.Width, desired.Height, 0x0010 | 0x0020 | 0x0040);
+        Native.SetWindowPos(collapsed ? bubbleWindow.Handle : Handle, IntPtr.Zero, point.X, point.Y, desired.Width, desired.Height, 0x0010 | 0x0020 | 0x0040);
     }
 
     void DisplayChanged(object sender, EventArgs e)
     {
-        if (!closing && IsHandleCreated) BeginInvoke(new Action(delegate { ClampPosition(); if (attached) Attach(false); }));
+        if (!closing && IsHandleCreated) BeginInvoke(new Action(delegate { ClampPosition(); if (collapsed) AttachBubble(); else if (attached) Attach(false); }));
     }
     void ClampPosition()
     {
@@ -340,14 +370,18 @@ sealed class Widget : Form
             foreach (Button button in new[] { collapseButton, closeButton }) {
                 var center = new Point(button.Left + button.Width / 2, button.Top + button.Height / 2);
                 if (header.GetChildAtPoint(center) != button) throw new InvalidOperationException("Header control obstructed");
+                if (GetChildAtPoint(new Point(header.Left + center.X, header.Top + center.Y)) != header) throw new InvalidOperationException("Header covered by web view");
             }
+            if (browser.Top < header.Bottom) throw new InvalidOperationException("Web view overlaps header");
+            using (var bitmap = new Bitmap(header.Width, header.Height)) { header.DrawToBitmap(bitmap, header.ClientRectangle); bitmap.Save(Path.Combine(dataPath, "header.png")); }
             collapseButton.PerformClick();
-            if (!collapsed || browser.Visible || Width != (int)(54 * scale) || !bubble.Visible) throw new InvalidOperationException("Collapse failed");
-            using (var bitmap = new Bitmap(Width, Height)) { bubble.DrawToBitmap(bitmap, new Rectangle(Point.Empty, Size)); bitmap.Save(Path.Combine(dataPath, "bubble.png")); }
+            await Task.Delay(1000);
+            if (!collapsed || Visible || bubbleWindow.Width != (int)(54 * scale) || !bubbleWindow.Visible || Native.GetParent(bubbleWindow.Handle) != desktop) throw new InvalidOperationException("Collapse failed");
+            using (var bitmap = new Bitmap(bubble.Width, bubble.Height)) { bubble.DrawToBitmap(bitmap, bubble.ClientRectangle); bitmap.Save(Path.Combine(dataPath, "bubble.png")); }
             bubble.PerformClick();
             if (collapsed || !browser.Visible || Size != fullSize) throw new InvalidOperationException("Expand failed");
             collapseButton.PerformClick(); bubble.PerformClick();
-            WriteStatus("verified:desktop-child,https-sync,auto-refresh,detach-reattach,header-hit-test,collapse-bubble-expand,close-button");
+            WriteStatus("verified:desktop-child,https-sync,auto-refresh,detach-reattach,header-not-covered,separate-bubble-visible,expand,close-button");
             closeButton.PerformClick();
             if (!closing) throw new InvalidOperationException("Close button failed");
         }
@@ -357,7 +391,7 @@ sealed class Widget : Form
     void WriteStatus(string state)
     {
         try {
-            File.WriteAllText(Path.Combine(dataPath, verify ? "verification.json" : "status.json"), json.Serialize(new { state = state, attached = attached, collapsed = collapsed, parentClass = Native.ClassName(Native.GetParent(Handle)), topmost = (Native.GetWindowLong(Handle, -20) & 8) != 0, width = Width, height = Height, timestamp = DateTimeOffset.Now.ToString("o") }));
+            File.WriteAllText(Path.Combine(dataPath, verify ? "verification.json" : "status.json"), json.Serialize(new { state = state, pid = System.Diagnostics.Process.GetCurrentProcess().Id, attached = attached, collapsed = collapsed, visible = Visible, bubbleVisible = bubbleWindow.Visible, parentClass = Native.ClassName(Native.GetParent(Handle)), topmost = (Native.GetWindowLong(Handle, -20) & 8) != 0, width = Width, height = Height, timestamp = DateTimeOffset.Now.ToString("o") }));
         } catch { }
     }
 }
