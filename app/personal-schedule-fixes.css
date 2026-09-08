@@ -68,6 +68,12 @@
 .personal-card{transition:opacity .14s,box-shadow .14s,transform .14s}
 .personal-card{touch-action:none;user-select:none}
 .personal-card time{white-space:nowrap}
+.personal-card{grid-template-columns:minmax(0,1fr);container-type:size;container-name:personal-event}
+.personal-card time,.personal-card small{grid-column:1}
+.personal-card-summary{display:none;color:#394052;white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.5;font-size:14px;text-align:left}
+@container personal-event (min-width:120px) and (min-height:120px){
+  .personal-card-summary{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:3;overflow:hidden;margin-top:5px}
+}
 .personal-card[style*="33.333"]{padding-left:4px;padding-right:4px}
 .personal-card[style*="33.333"] small em{display:none}
 .personal-completed-button{display:flex;align-items:center;gap:6px;border-radius:8px!important}
