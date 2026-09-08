@@ -397,11 +397,14 @@ export default function PersonalSchedule() {
             <div className="personal-day-track" data-due={due} onPointerDown={event => beginRange(event, due)} onPointerMove={updateRange} onPointerUp={finishRange} onPointerCancel={cancelRange} onLostPointerCapture={cancelRange}>{newRange?.due === due && <div className="personal-new-range" style={{ top: `${(newRange.start - DAY_START) / (DAY_END - DAY_START) * 100}%`, height: `${(newRange.end - newRange.start) / (DAY_END - DAY_START) * 100}%` }}><span>{toTime(newRange.start)}–{toTime(newRange.end)}</span></div>}{dragPreview?.due === due && <div className="personal-drop-preview" style={{ top: `${((toMinutes(dragPreview.startTime) - DAY_START) / (DAY_END - DAY_START)) * 100}%` }}><span>{dragPreview.startTime}</span></div>}{dayTasks.map((task) => {
               const person = PEOPLE.find((item) => item.name === task.owner)!;
               const start = Math.max(DAY_START, toMinutes(task.startTime));
-              const end = Math.min(DAY_END, Math.max(start + 30, toMinutes(task.endTime)));
+              const end = Math.min(DAY_END, Math.max(start + 15, toMinutes(task.endTime)));
               const placement = overlapLayout.get(task.id) || { column: 0, columns: 1 };
               const width = 100 / placement.columns;
-              const style = { top: `${((start - DAY_START) / (DAY_END - DAY_START)) * 100}%`, height: `${Math.max(3.4, ((end - start) / (DAY_END - DAY_START)) * 100)}%`, left: `calc(${placement.column * width}% + 3px)`, width: `calc(${width}% - 6px)` };
-              return <button key={task.id} style={style} draggable={false} className={`personal-card ${task.done ? "done" : ""} ${dragId === task.id ? "dragging" : ""}`} onPointerDown={(event) => startPointerDrag(event, task.id)} onClick={() => clickTask(task)} onContextMenu={(event) => openMenu(event, task.id)}><strong>{task.title}</strong><time>{task.startTime}–{task.endTime}</time><small><i style={{ background: person.color }}>{task.owner[0]}</i>{allView && task.owner}<em>{task.category}</em></small>{task.note?.trim() && <span className="personal-card-summary">{task.note}</span>}</button>;
+              const style = { top: `${((start - DAY_START) / (DAY_END - DAY_START)) * 100}%`, height: `calc(${((end - start) / (DAY_END - DAY_START)) * 100}% - 4px)`, left: `calc(${placement.column * width}% + 3px)`, width: `calc(${width}% - 6px)` };
+              return <button key={task.id} data-schedule-id={task.id} title={`${task.title}
+${task.startTime}–${task.endTime}
+${task.owner} · ${task.category}${task.note?.trim() ? `
+${task.note}` : ""}`} style={style} draggable={false} className={`personal-card ${end - start <= 30 ? "compact" : ""} ${task.done ? "done" : ""} ${dragId === task.id ? "dragging" : ""}`} onPointerDown={(event) => startPointerDrag(event, task.id)} onClick={() => clickTask(task)} onContextMenu={(event) => openMenu(event, task.id)}><strong>{task.title}</strong><time>{task.startTime}–{task.endTime}</time><small><i style={{ background: person.color }}>{task.owner[0]}</i>{allView && task.owner}<em>{task.category}</em></small>{task.note?.trim() && <span className="personal-card-summary">{task.note}</span>}</button>;
             })}</div>
           </section>;
         })}</div>

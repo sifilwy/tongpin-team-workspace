@@ -311,4 +311,33 @@ try {
   await page.locator('.desk-events').getByText('同步新增任务',{exact:true}).waitFor({timeout:20000});
   assert.equal(await page.evaluate(()=>window.desktopWrites),0);
   console.log('PASS: desktop shows only xzx, date navigation, pending tasks and automatic read-only refresh');
+  await page.setViewportSize({width:1600,height:1000});
+  await page.addStyleTag({content:'.personal-day-track{height:auto;width:auto}'});
+  await page.addStyleTag({content:readFileSync(new URL('../app/personal-schedule-v2.css',import.meta.url),'utf8') + '\n' + readFileSync(new URL('../app/personal-schedule-fixes.css',import.meta.url),'utf8')});
+  await page.evaluate(() => {
+    const monday=new Date(); monday.setDate(monday.getDate()-((monday.getDay()+6)%7));
+    const due=`${monday.getFullYear()}-${String(monday.getMonth()+1).padStart(2,'0')}-${String(monday.getDate()).padStart(2,'0')}`;
+    const ranges=[['08:00','09:00'],['09:00','10:00'],['10:00','12:00'],['12:00','12:15'],['12:15','12:30'],['12:30','13:00'],['13:00','14:00'],['13:00','14:00'],['13:00','14:00']];
+    window.fixture['tongpin-personal-tasks-v3']=ranges.map(([startTime,endTime],i)=>({id:800+i,title:'完整的长标题用于检查日程内容是否挤压和重叠',owner:'xzx',due,done:false,category:'很长的分类名称',note:'保存的总结内容',startTime,endTime}));
+    window.renderSchedule();
+  });
+  await page.locator('[data-schedule-id="800"]').waitFor();
+  for (const zoom of [1,1.5,2]) {
+    await page.evaluate(zoom=>document.querySelector('.personal-v2').style.zoom=zoom,zoom);
+    const boxes=await page.locator('[data-schedule-id]').evaluateAll(cards=>cards.map(card=>{
+      const r=card.getBoundingClientRect();
+      const parts=[...card.querySelectorAll('strong,time,small')].filter(el=>getComputedStyle(el).display!=='none').map(el=>{const b=el.getBoundingClientRect();return {top:b.top,bottom:b.bottom};});
+      return {id:Number(card.dataset.scheduleId),top:r.top,bottom:r.bottom,left:r.left,right:r.right,parts};
+    }));
+    for(let i=0;i<6;i++) assert.ok(boxes[i+1].top-boxes[i].bottom>=3.5*zoom,'Adjacent events must have a visible gap');
+    for(const box of boxes) for(const part of box.parts) assert.ok(part.top>=box.top && part.bottom<=box.bottom+1,JSON.stringify({zoom,box,part}));
+    const parallel=boxes.slice(6).sort((a,b)=>a.left-b.left);
+    assert.ok(parallel[0].right<parallel[1].left && parallel[1].right<parallel[2].left,'Concurrent events must remain separated');
+  }
+  await page.evaluate(()=>document.querySelector('.personal-v2').style.zoom=1);
+  await page.locator('[data-schedule-id="803"]').click();
+  assert.equal(await page.locator('input[name=startTime]').inputValue(),'12:00');
+  assert.equal(await page.locator('input[name=endTime]').inputValue(),'12:15');
+  assert.equal(await page.locator('input[name=title]').inputValue(),'完整的长标题用于检查日程内容是否挤压和重叠');
+  console.log('PASS: adjacent 15/30/60-minute events stay separated, long-title metadata fits, concurrent cards separate at 100/150/200 percent zoom, short events remain editable');
 } finally { await browser.close(); }

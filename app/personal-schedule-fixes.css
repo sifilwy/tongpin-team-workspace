@@ -70,6 +70,23 @@
 .personal-card time{white-space:nowrap}
 .personal-card{grid-template-columns:minmax(0,1fr);container-type:size;container-name:personal-event}
 .personal-card time,.personal-card small{grid-column:1}
+.personal-timeline-shell{overflow-x:auto}
+.personal-card{min-height:0;box-sizing:border-box;align-content:start;box-shadow:none}
+.personal-card strong{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:1;overflow-wrap:anywhere}
+.personal-card small{min-width:0;overflow:hidden;white-space:nowrap}
+.personal-card small>i{flex-shrink:0}
+.personal-card small>em{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.personal-card.compact{padding:0 3px;border-radius:4px}
+.personal-card.compact strong{line-height:1}
+@container personal-event (max-height:39px){
+  .personal-card small{display:none}
+}
+@container personal-event (max-height:21px){
+  .personal-card time{display:none}
+}
+@container personal-event (min-height:54px){
+  .personal-card strong{-webkit-line-clamp:2}
+}
 .personal-card-summary{display:none;color:#394052;white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.5;font-size:9px;text-align:left}
 @container personal-event (min-width:120px) and (min-height:120px){
   .personal-card-summary{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:3;overflow:hidden;margin-top:5px}
