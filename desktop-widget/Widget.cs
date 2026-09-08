@@ -54,7 +54,7 @@ sealed class Widget : Form
         verify = verification; signInCode = code;
         dataPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), verify ? "TongpinWidgetVerification" : "TongpinWidget");
         Directory.CreateDirectory(dataPath);
-        Text = "同频 · xzx 桌面日程";
+        Text = "同屏";
         Icon = SystemIcons.Application;
         BackColor = Color.FromArgb(243, 245, 250);
         StartPosition = FormStartPosition.Manual;
@@ -69,12 +69,12 @@ sealed class Widget : Form
         desired = new Rectangle(working.Right - width - 22, working.Top + 24, width, height);
         if (!verify) LoadPosition();
         Bounds = desired;
-        var header = new Panel { Dock = DockStyle.Top, Height = (int)(32 * scale), BackColor = Color.FromArgb(232, 238, 249) };
-        status.Text = "桌面日程";
+        var header = new Panel { Dock = DockStyle.Top, Height = (int)(26 * scale), BackColor = Color.FromArgb(232, 238, 249) };
+        status.Text = "同屏";
         status.Font = new Font("Microsoft YaHei UI", 9);
         status.ForeColor = Color.FromArgb(102, 119, 148);
         status.Dock = DockStyle.Fill;
-        status.Padding = new Padding(14, 5, 0, 0);
+        status.Padding = new Padding((int)(14 * scale), (int)(3 * scale), 0, 0);
         var actions = new Button { Text = "•••", Dock = DockStyle.Right, Width = (int)(42 * scale), FlatStyle = FlatStyle.Flat, BackColor = header.BackColor, ForeColor = status.ForeColor };
         actions.FlatAppearance.BorderSize = 0;
         actions.AccessibleName = "日程组件菜单";
@@ -89,7 +89,7 @@ sealed class Widget : Form
         menu.Items.Add("恢复右侧位置", null, delegate { if (!attached) Attach(false); var area = Screen.PrimaryScreen.WorkingArea; desired = new Rectangle(area.Right - Width - 22, area.Top + 24, Width, Math.Min(Height, area.Height - 48)); Attach(true); });
         menu.Items.Add(new ToolStripSeparator());
         menu.Items.Add("退出组件", null, delegate { Close(); });
-        tray.Text = "同频 · xzx 桌面日程";
+        tray.Text = "同屏";
         tray.Icon = Icon;
         tray.ContextMenuStrip = menu;
         tray.Visible = true;
@@ -154,7 +154,7 @@ sealed class Widget : Form
         Native.ScreenToClient(desktop, ref point);
         Native.SetWindowPos(Handle, IntPtr.Zero, point.X, point.Y, desired.Width, desired.Height, 0x0010 | 0x0020 | 0x0040);
         positionItem.Text = "移动位置";
-        status.Text = "已固定到桌面";
+        status.Text = "同屏";
         RoundCorners();
         if (save && !verify) SavePosition();
         WriteStatus("attached");
@@ -194,7 +194,7 @@ sealed class Widget : Form
             core.NavigationStarting += delegate(object sender, CoreWebView2NavigationStartingEventArgs e) { Uri uri; if (!Uri.TryCreate(e.Uri, UriKind.Absolute, out uri) || uri.Scheme != "https" || uri.Host != "yanxue-sync.top") e.Cancel = true; };
             core.ProcessFailed += delegate { status.Text = "页面已停止 · 菜单可刷新"; WriteStatus("renderer-failed"); };
             // Compact only this embedded copy; keep the normal website unchanged.
-            await core.AddScriptToExecuteOnDocumentCreatedAsync("document.addEventListener('DOMContentLoaded',()=>{let s=document.createElement('style');s.textContent='body .desktop-agenda{padding:16px 20px 18px;min-height:100vh}body .desk-clock{padding:20px 0}body .desk-clock h1{font-size:64px}body .desk-focus{margin-top:16px;padding:17px 18px}body .desk-schedule{padding-top:20px}body .desk-footer a{display:none}::-webkit-scrollbar{width:4px}::-webkit-scrollbar-thumb{background:#bdcbe1;border-radius:5px}';document.head.append(s)})");
+            await core.AddScriptToExecuteOnDocumentCreatedAsync("document.addEventListener('DOMContentLoaded',()=>{let s=document.createElement('style');s.textContent='body .desktop-agenda{padding:12px 16px 18px;min-height:100vh}body .desk-header{display:none}body .desk-top{margin-top:0}body .desk-footer a{display:none}::-webkit-scrollbar{width:4px}::-webkit-scrollbar-thumb{background:#bdcbe1;border-radius:5px}';document.head.append(s)})");
             if (!string.IsNullOrEmpty(signInCode)) {
                 try { await SignIn(signInCode); }
                 catch { status.Text = "登录未完成 · 请在下方输入邀请码"; }
