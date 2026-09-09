@@ -72,6 +72,8 @@ try {
   await page.route('**/*', route => { requests.push(route.request().url()); return route.abort(); });
   await page.setContent('<!doctype html><html><body><div id="root"></div></body></html>');
   await page.evaluate(() => {
+    // about:blank lacks secure-context randomUUID; production runs on HTTPS.
+    if (!crypto.randomUUID) Object.defineProperty(crypto,'randomUUID',{value:()=>Array.from(crypto.getRandomValues(new Uint32Array(4))).map(n=>n.toString(16)).join('-')});
     window.fixture = {
       'tongpin-personal-categories-v2': { xzx: ['学习'], czl: ['客户'] },
       'tongpin-personal-tasks-v3': [{ id: 1, title: '旧任务', owner: '吃吃', category: '旧分类', due: null, done: false, note: '', startTime: '09:00', endTime: '10:00' }],
@@ -91,7 +93,7 @@ try {
       await modal.locator('select[name=owner]').selectOption(editorOwner);
       assert.ok(await modal.locator('select[name=category] option').count());
     }
-    await modal.locator('header button').click();
+    await modal.locator(':scope > header button').click();
   }
   console.log('PASS: legacy document, five member tabs, all editor member/category selections');
   await page.locator('.personal-segment').getByRole('button', { name: '吃吃', exact: true }).click();
@@ -159,13 +161,13 @@ try {
   await page.mouse.move(x, y2(14)); await page.mouse.down(); await page.mouse.move(x, y2(13), {steps:8}); await page.mouse.up();
   assert.equal(await page.locator('input[name=startTime]').inputValue(), '13:00');
   assert.equal(await page.locator('input[name=endTime]').inputValue(), '14:00');
-  await page.locator('.personal-edit-modal header button').click();
+  await page.locator('.personal-edit-modal > header button').click();
   await page.mouse.click(x, y2(15));
   assert.equal(await page.locator('.personal-edit-modal').count(), 0);
   await page.mouse.move(x, y2(16)); await page.mouse.down(); await page.mouse.move(x, y2(17), {steps:8}); await page.keyboard.press('Escape'); await page.mouse.up();
   assert.equal(await page.locator('.personal-edit-modal').count(), 0);
   await track.locator('.personal-card').filter({ hasText: '拖动新建验证' }).click();
-  assert.equal(await page.locator('.personal-edit-modal header strong').textContent(), '修改个人任务');
+  assert.equal(await page.locator('.personal-edit-modal > header strong').textContent(), '修改个人任务');
   await page.getByRole('textbox', { name: '总结', exact: true }).fill('第一行总结\n第二行总结');
   await page.locator('.personal-edit-modal .save').click();
   assert.equal(await page.locator('.personal-card-check').count(), 0);
@@ -340,7 +342,7 @@ try {
   assert.equal(await page.locator('input[name=endTime]').inputValue(),'12:15');
   assert.equal(await page.locator('input[name=title]').inputValue(),'完整的长标题用于检查日程内容是否挤压和重叠');
   console.log('PASS: adjacent 15/30/60-minute events stay separated, long-title metadata fits, concurrent cards separate at 100/150/200 percent zoom, short events remain editable');
-  await page.locator('.personal-edit-modal header button').click();
+  await page.locator('.personal-edit-modal > header button').click();
   const resizingCard=page.locator('[data-schedule-id="800"]');
   const resizeTo=async(edge,hour)=>{
     const handle=resizingCard.locator(`[data-resize-edge="${edge}"]`);
@@ -385,4 +387,54 @@ try {
   await page.locator('[data-schedule-id="800"]').waitFor();
   assert.deepEqual(await savedTimes(),['07:45','08:15']);
   console.log('PASS: resize both edges, extend/shorten at 15-minute steps, conflict and end-boundary preview, no writes before release, Escape/pointercancel rollback, preserve short duration when moving, remount');
+  await page.getByRole('button',{name:'设置很长的分类名称配色',exact:true}).click();
+  await page.getByRole('button',{name:'蓝色',exact:true}).click();
+  assert.equal(await page.locator('[data-schedule-id="800"]').evaluate(el=>getComputedStyle(el).borderLeftColor),'rgb(65, 120, 199)');
+  await page.getByRole('button',{name:'修改很长的分类名称分类名称',exact:true}).click();
+  await page.getByRole('textbox',{name:'修改分类名称',exact:true}).fill('蓝色学习');
+  await page.getByRole('button',{name:'保存分类名称',exact:true}).click();
+  await page.evaluate(()=>window.renderSchedule());
+  await page.locator('[data-schedule-id="800"]').waitFor();
+  assert.equal(await page.locator('[data-schedule-id="800"]').evaluate(el=>getComputedStyle(el).borderLeftColor),'rgb(65, 120, 199)');
+  const repeatStart=await page.evaluate(()=>window.fixture['tongpin-personal-tasks-v3'][0].due);
+  const repeatEnd=await page.evaluate(start=>{const d=new Date(start+'T12:00:00Z');d.setUTCDate(d.getUTCDate()+14);return d.toISOString().slice(0,10);},repeatStart);
+  await page.locator('.personal-create').click();
+  await page.locator('input[name=title]').fill('每周复习');
+  await page.locator('select[name=category]').selectOption('蓝色学习');
+  await page.locator('input[name=due]').fill(repeatStart);
+  await page.getByRole('button',{name:'不重复 · 点击设置',exact:true}).click();
+  const repeatDialog=page.getByRole('dialog',{name:'设置重复日程',exact:true});
+  await repeatDialog.waitFor();
+  assert.equal(await repeatDialog.getByLabel('重复结束日期',{exact:true}).inputValue(),await page.evaluate(start=>{const d=new Date(start+'T12:00:00Z');d.setUTCMonth(d.getUTCMonth()+1);return d.toISOString().slice(0,10);},repeatStart));
+  await repeatDialog.getByRole('button',{name:'清空',exact:true}).click();
+  await repeatDialog.getByRole('button',{name:'确定重复',exact:true}).click();
+  assert.match(await repeatDialog.getByRole('alert').textContent(),/至少勾选/);
+  await repeatDialog.getByRole('checkbox',{name:'周三',exact:true}).check();
+  await repeatDialog.getByRole('checkbox',{name:'周四',exact:true}).check();
+  await repeatDialog.getByLabel('重复结束日期',{exact:true}).fill(repeatEnd);
+  await repeatDialog.getByRole('button',{name:'确定重复',exact:true}).click();
+  await page.locator('textarea[name=note]').fill('只属于第一次的总结');
+  assert.match(await page.locator('.personal-repeat-fields>p').textContent(),/4 次/);
+  await page.locator('.personal-edit-modal .save').click();
+  const series=await page.evaluate(()=>window.fixture['tongpin-personal-tasks-v3'].filter(t=>t.title==='每周复习'));
+  assert.equal(series.length,4);
+  assert.equal(new Set(series.map(t=>t.id)).size,4);
+  assert.deepEqual(series.map(t=>new Date(t.due+'T12:00:00Z').getUTCDay()),[3,4,3,4]);
+  assert.equal(new Set(series.map(t=>t.seriesId)).size,1);
+  assert.deepEqual(series.map(t=>t.note),['只属于第一次的总结','','','']);
+  const firstOccurrence=page.locator(`[data-schedule-id="${series[0].id}"]`);
+  await firstOccurrence.scrollIntoViewIfNeeded(); await page.waitForTimeout(150);
+  await firstOccurrence.click({button:'right'});
+  await page.getByRole('button',{name:'标记完成',exact:true}).click();
+  assert.deepEqual(await page.evaluate(id=>window.fixture['tongpin-personal-tasks-v3'].filter(t=>t.seriesId===id).map(t=>t.done),series[0].seriesId),[true,false,false,false]);
+  const secondOccurrence=page.locator(`[data-schedule-id="${series[1].id}"]`);
+  await secondOccurrence.click();
+  await page.locator('textarea[name=note]').fill('第二次独立总结');
+  await page.locator('.personal-edit-modal .save').click();
+  assert.deepEqual(await page.evaluate(id=>window.fixture['tongpin-personal-tasks-v3'].filter(t=>t.seriesId===id).map(t=>t.note),series[0].seriesId),['只属于第一次的总结','第二次独立总结','','']);
+  await secondOccurrence.click();
+  page.once('dialog',dialog=>dialog.accept());
+  await page.getByRole('button',{name:'停止后续重复',exact:true}).click();
+  assert.deepEqual(await page.evaluate(id=>window.fixture['tongpin-personal-tasks-v3'].filter(t=>t.seriesId===id).map(t=>t.id),series[0].seriesId),series.slice(0,2).map(t=>t.id));
+  console.log('PASS: category color selection, rename and remount; weekly recurring dates, independent completion and summaries, stop future preserves past and current');
 } finally { await browser.close(); }

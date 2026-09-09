@@ -14,6 +14,20 @@ after(() => {
 });
 const { handleTeam } = await import('../app/lib/team-store.ts');
 const call = (body, cookie = '') => handleTeam(new Request('http://localhost/api/team', { method: 'POST', headers: { cookie, 'Content-Type': 'application/json' }, body: JSON.stringify(body) }));
+
+test('personal category colors persist per member and reject unknown colors', async()=>{
+  await handleTeam(new Request('http://localhost/api/team'));
+  const codes=JSON.parse(readFileSync(join(directory,'invitations.json'),'utf8'));
+  const login=await call({action:'login',code:codes.xzx});
+  const cookie=login.headers.get('set-cookie').split(';')[0];
+  const key='tongpin-personal-category-colors-v1';
+  const value={xzx:{学习:'blue'},czl:{学习:'rose'}};
+  assert.equal((await call({key,revision:0,value},cookie)).status,200);
+  const restored=await handleTeam(new Request(`http://localhost/api/team?key=${key}`,{headers:{cookie}}));
+  assert.deepEqual((await restored.json()).document.value,value);
+  assert.equal((await call({key,revision:1,value:{xzx:{学习:'bad'}}},cookie)).status,400);
+  assert.equal((await call({key,revision:1,value:[]},cookie)).status,400);
+});
 test('invitation identity, durable data, attribution and concurrent revision protection', async () => {
   try {
     assert.equal((await handleTeam(new Request('http://localhost/api/team'))).status, 401);

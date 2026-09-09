@@ -1,6 +1,7 @@
 import { mkdirSync, existsSync, readFileSync, writeFileSync, renameSync } from "node:fs";
 import { join } from "node:path";
 import { randomBytes, createHash } from "node:crypto";
+import { personalPalette } from "./personal-colors.mjs";
 
 const names = ["xzx", "吃吃", "czl", "子涵", "悦悦"];
 const dir = process.env.TONGPIN_DATA_DIR || join(process.cwd(), ".team-data");
@@ -21,7 +22,7 @@ function save(state: Store) {
   writeFileSync(file + ".tmp", JSON.stringify(state), { mode: 0o600 });
   renameSync(file + ".tmp", file);
 }
-const allowed = new Set(["tongpin-tasks-v8", "tongpin-messages-v8", "tongpin-personal-tasks-v3", "tongpin-personal-categories-v2", "tongpin-review-notes-v1"]);
+const allowed = new Set(["tongpin-tasks-v8", "tongpin-messages-v8", "tongpin-personal-tasks-v3", "tongpin-personal-categories-v2", "tongpin-personal-category-colors-v1", "tongpin-review-notes-v1"]);
 const attempts = new Map<string, { count: number; until: number }>();
 export async function handleTeam(request: Request) {
   const publicOrigin = new URL(process.env.TONGPIN_PUBLIC_ORIGIN || request.url).origin;
@@ -61,7 +62,9 @@ export async function handleTeam(request: Request) {
   if (!allowed.has(body.key)) return reply({ error: "未知数据类型" }, 400);
   const previous = state.documents[body.key];
   if ((previous?.revision || 0) !== body.revision) return reply({ error: "另一位成员已更新，请刷新后重试", document: previous }, 409);
-  if (body.key.endsWith("categories-v2") ? !body.value || Array.isArray(body.value) || typeof body.value !== "object" : !Array.isArray(body.value)) return reply({ error: "数据格式不正确" }, 400);
+  const isColors = body.key === "tongpin-personal-category-colors-v1";
+  if (body.key.endsWith("categories-v2") || isColors ? !body.value || Array.isArray(body.value) || typeof body.value !== "object" : !Array.isArray(body.value)) return reply({ error: "数据格式不正确" }, 400);
+  if (isColors && Object.entries(body.value).some(([owner, colors]) => !names.includes(owner) || !colors || Array.isArray(colors) || typeof colors !== "object" || Object.values(colors).some(color => !personalPalette.some(item => item.id === color)))) return reply({ error: "分类配色无效" }, 400);
   if (Array.isArray(body.value)) {
     if (body.value.some((item: any) => !item || typeof item !== "object" || !Number.isFinite(item.id))) return reply({ error: "任务格式不正确" }, 400);
     const old = Array.isArray(previous?.value) ? previous.value : [];
