@@ -1,4 +1,4 @@
-.weekly-plan-dialog{margin:auto;padding:0;width:min(620px,calc(100vw - 32px));max-height:calc(100dvh - 40px);border:1px solid #e2daec;border-radius:18px;background:#fff;color:#3d3548;box-shadow:0 24px 90px #24173533;overflow:hidden}
+.weekly-plan-dialog{margin:auto;padding:0;width:min(740px,calc(100vw - 32px));max-height:calc(100dvh - 40px);border:1px solid #e2daec;border-radius:18px;background:#fff;color:#3d3548;box-shadow:0 24px 90px #24173533;overflow:hidden}
 .weekly-plan-dialog::backdrop{background:#28213770}
 .weekly-plan-dialog form{display:flex;flex-direction:column;max-height:calc(100dvh - 42px)}
 .weekly-plan-dialog header{display:flex;align-items:center;justify-content:space-between;padding:22px 26px 18px;border-bottom:1px solid #ebe5f0;background:#fff}
@@ -10,7 +10,11 @@
 .weekly-plan-dialog textarea{display:block;width:100%;box-sizing:border-box;resize:vertical;min-height:82px;margin-top:10px;padding:12px;border:1px solid #e3dcec;border-radius:10px;background:#fff;color:#4a4055;font-family:inherit;font-size:13px;font-weight:400;line-height:1.7;outline:none}
 .weekly-plan-dialog textarea:focus{border-color:#a48abe;box-shadow:0 0 0 3px #a48abe15}
 .weekly-plan-dialog textarea::placeholder{color:#b0a6b7}
-.weekly-plan-dialog .weekly-plan-overview{margin:0;background:#faf9fc}
+.weekly-plan-dialog .weekly-plan-overview{margin:0;min-height:190px;background:#faf9fc}
+.weekly-plan-categories{display:flex;gap:8px;margin-bottom:14px}
+.weekly-plan-categories button{border:1px solid #e7dfef;border-radius:8px;padding:7px 22px;background:#fff;color:#8b8095;font:inherit;font-size:13px;cursor:pointer}
+.weekly-plan-categories button[aria-pressed=true]{border-color:#d9cae6;background:#eee7f6;color:#75548d;font-weight:600}
+.weekly-plan-categories button:focus-visible{outline:2px solid #a48abe;outline-offset:2px}
 .weekly-plan-tabs{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:4px;margin:22px 0 12px}
 .weekly-plan-tabs button{display:flex;flex-direction:column;align-items:center;gap:5px;padding:10px 0 6px;border:0;border-radius:8px;background:transparent;color:#8b8095;font:inherit;font-size:13px;cursor:pointer;white-space:nowrap}
 .weekly-plan-tabs button:hover{background:#f7f4fa}

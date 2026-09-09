@@ -11,8 +11,9 @@ export function weekPlanDates(week) {
 }
 export const emptyWeekPlan = week => ({weekly:'',summary:'',days:Object.fromEntries(weekPlanDates(week).map(date=>[date,'']))});
 export function validWeekPlan(value, week) {
-  if(!value || Array.isArray(value) || typeof value!=='object' || Object.keys(value).some(key=>!['weekly','summary','days'].includes(key))) return false;
+  if(!value || Array.isArray(value) || typeof value!=='object' || Object.keys(value).some(key=>!['weekly','summary','days','ballWeekly'].includes(key))) return false;
   const text=value=>typeof value==='string' && value.length<=10000;
+  if(Object.hasOwn(value,'ballWeekly') && !text(value.ballWeekly)) return false;
   if(!text(value.weekly) || !text(value.summary) || !value.days || Array.isArray(value.days) || typeof value.days!=='object') return false;
   const dates=weekPlanDates(week);
   return Object.keys(value.days).length===7 && dates.every(date=>text(value.days[date]));
@@ -22,5 +23,6 @@ export function mergeWeekPlan(base, draft, latest) {
     weekly:draft.weekly===base.weekly ? latest.weekly : draft.weekly,
     summary:draft.summary===base.summary ? latest.summary : draft.summary,
     days:Object.fromEntries(Object.keys(draft.days).map(date=>[date,draft.days[date]===base.days[date] ? latest.days[date] : draft.days[date]])),
+    ...(Object.hasOwn(draft,'ballWeekly') || Object.hasOwn(latest,'ballWeekly') ? {ballWeekly:(draft.ballWeekly || '')===(base.ballWeekly || '') ? latest.ballWeekly || '' : draft.ballWeekly || ''}:{}),
   };
 }

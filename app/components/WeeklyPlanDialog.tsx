@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { emptyWeekPlan, mergeWeekPlan, validWeekPlan, weekPlanDates, weekPlanKey } from "../lib/weekly-plan.mjs";
 import "../weekly-plan.css";
 
-type Plan = {weekly:string;summary:string;days:Record<string,string>};
+type Plan = {weekly:string;ballWeekly?:string;summary:string;days:Record<string,string>};
 type Document = {revision:number;value:Plan};
 const weekdays=['周一','周二','周三','周四','周五','周六','周日'];
 export default function WeeklyPlanDialog({ owner, week, onClose }: {owner:string;week:string;onClose:()=>void}) {
@@ -17,6 +17,7 @@ export default function WeeklyPlanDialog({ owner, week, onClose }: {owner:string
   const [notice,setNotice]=useState("");
   const [retry,setRetry]=useState(0);
   const [selectedDay,setSelectedDay]=useState(0);
+  const [category,setCategory]=useState<'independent'|'ball'>('independent');
   const dialog=useRef<HTMLDialogElement>(null);
   const guard=useRef({mounted:false,busy:false,abort:new AbortController()});
   const dirty=JSON.stringify(base)!==JSON.stringify(draft);
@@ -71,7 +72,11 @@ export default function WeeklyPlanDialog({ owner, week, onClose }: {owner:string
         {error && <div className="weekly-plan-error" role="alert">{error}{!ready && <button type="button" onClick={()=>setRetry(value=>value+1)}>重新读取</button>}</div>}
         {!ready && !error && <p role="status">正在读取本周计划…</p>}
         <fieldset disabled={!ready || busy}>
-          <textarea className="weekly-plan-overview" aria-label="本周计划" rows={3} maxLength={10000} value={draft.weekly} onChange={event=>setDraft({...draft,weekly:event.target.value})} placeholder="写下这一周的重点和安排…" />
+          <div className="weekly-plan-categories" role="group" aria-label="计划标签">
+            <button type="button" aria-pressed={category==='independent'} onClick={()=>setCategory('independent')}>独立</button>
+            <button type="button" aria-pressed={category==='ball'} onClick={()=>setCategory('ball')}>皮球</button>
+          </div>
+          <textarea className="weekly-plan-overview" aria-label="本周计划" rows={7} maxLength={10000} value={category==='ball' ? draft.ballWeekly || '' : draft.weekly} onChange={event=>setDraft({...draft,[category==='ball'?'ballWeekly':'weekly']:event.target.value})} placeholder={`写下${category==='ball'?'皮球':'独立'}这一周的重点和安排…`} />
           <div className="weekly-plan-tabs" role="tablist" aria-label="选择星期">{dates.map((date,index)=><button key={date} id={`plan-day-${index}`} type="button" role="tab" aria-selected={selectedDay===index} aria-controls="plan-day-panel" tabIndex={selectedDay===index?0:-1} onClick={()=>setSelectedDay(index)} onKeyDown={event=>{
             const next=event.key==='ArrowRight'?(index+1)%7:event.key==='ArrowLeft'?(index+6)%7:event.key==='Home'?0:event.key==='End'?6:null;
             if(next!==null){event.preventDefault();setSelectedDay(next);dialog.current?.querySelector<HTMLButtonElement>(`#plan-day-${next}`)?.focus();}

@@ -21,3 +21,17 @@ test('conflict merge preserves remotely updated days and only changes edited fie
  assert.equal(merged.weekly,'本周计划');assert.equal(merged.summary,'他处总结');
  assert.equal(merged.days['2026-09-07'],'周一安排');assert.equal(merged.days['2026-09-08'],'周二安排');
 });
+
+test('tagged plans accept legacy data and merge independent category edits without data loss',()=>{
+ const week='2026-09-07';const base={...emptyWeekPlan(week),weekly:'原有独立计划'};
+ const draft={...base,ballWeekly:'皮球计划'};
+ const latest={...base,summary:'本周总结',days:{...base.days,'2026-09-09':'共享记录'},ballWeekly:'其他页面的皮球计划'};
+ assert.ok(validWeekPlan(base,week));assert.ok(validWeekPlan(draft,week));
+ const result=mergeWeekPlan(base,draft,latest);
+ assert.equal(result.weekly,'原有独立计划');assert.equal(result.summary,'本周总结');
+ assert.equal(result.ballWeekly,'皮球计划');assert.equal(result.days['2026-09-09'],'共享记录');
+ assert.equal(mergeWeekPlan(base,{...base,weekly:'独立更新'},latest).ballWeekly,latest.ballWeekly);
+ assert.equal(mergeWeekPlan(latest,{...latest,ballWeekly:''},latest).ballWeekly,'');
+ assert.equal(validWeekPlan({...base,ballWeekly:'x'.repeat(10001)},week),false);
+ assert.equal(validWeekPlan({...base,ballWeekly:null},week),false);
+});
