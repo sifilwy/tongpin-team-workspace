@@ -63,6 +63,7 @@
 .personal-status-block .personal-pending-list{gap:5px;padding:0}
 .personal-status-block .personal-pending-list>button{gap:3px;padding:9px 10px;border-color:#ece8e1;border-radius:8px;box-shadow:none}
 .personal-status-block .personal-pending-list>button:hover{border-color:#d9d2ff;background:#faf9ff}
+.personal-series-count{display:block;color:var(--category-color,#7564d7);font-size:8px;line-height:1.5}
 .personal-category-form{display:grid;grid-template-columns:minmax(0,1fr) 28px 28px;gap:4px;margin-top:3px}
 .personal-category-form input{min-width:0;padding:7px 8px;border:1px solid #dcd6ff;border-radius:7px;background:#fff;color:#343746;font-size:10px;outline:0}
 .personal-category-form input:focus{border-color:#8a7cf0;box-shadow:0 0 0 2px rgba(108,92,231,.1)}

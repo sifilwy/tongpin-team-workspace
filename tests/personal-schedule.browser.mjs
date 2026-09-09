@@ -422,11 +422,25 @@ try {
   assert.deepEqual(series.map(t=>new Date(t.due+'T12:00:00Z').getUTCDay()),[3,4,3,4]);
   assert.equal(new Set(series.map(t=>t.seriesId)).size,1);
   assert.deepEqual(series.map(t=>t.note),['只属于第一次的总结','','','']);
+  const groupedCategory=page.locator('[data-personal-category="蓝色学习"]');
+  if (await groupedCategory.locator('button').first().getAttribute('aria-expanded') !== 'true') await groupedCategory.locator('button').first().click();
+  const groupedSidebar=page.locator(`[data-repeat-group="${series[0].seriesId}"]`);
+  assert.equal(await groupedSidebar.count(),1);
+  assert.match(await groupedSidebar.textContent(),/剩余 4 次/);
+  assert.equal(await groupedCategory.locator('button').first().locator('b').textContent(),'10');
+  assert.equal(await groupedCategory.locator('..').locator('[data-personal-status="active"]>header>b').textContent(),'10');
+  assert.equal(await page.locator('.personal-day-track .personal-repeat-mark').count(),2);
   const firstOccurrence=page.locator(`[data-schedule-id="${series[0].id}"]`);
   await firstOccurrence.scrollIntoViewIfNeeded(); await page.waitForTimeout(150);
   await firstOccurrence.click({button:'right'});
   await page.getByRole('button',{name:'标记完成',exact:true}).click();
   assert.deepEqual(await page.evaluate(id=>window.fixture['tongpin-personal-tasks-v3'].filter(t=>t.seriesId===id).map(t=>t.done),series[0].seriesId),[true,false,false,false]);
+  assert.equal(await groupedSidebar.count(),1);
+  assert.match(await groupedSidebar.textContent(),/剩余 3 次/);
+  assert.equal(await groupedSidebar.getAttribute('data-pending-id'),String(series[1].id));
+  await groupedSidebar.click();
+  assert.equal(await page.locator('input[name=due]').inputValue(),series[1].due);
+  await page.locator('.personal-edit-modal > header button').click();
   const secondOccurrence=page.locator(`[data-schedule-id="${series[1].id}"]`);
   await secondOccurrence.click();
   await page.locator('textarea[name=note]').fill('第二次独立总结');
@@ -436,5 +450,8 @@ try {
   page.once('dialog',dialog=>dialog.accept());
   await page.getByRole('button',{name:'停止后续重复',exact:true}).click();
   assert.deepEqual(await page.evaluate(id=>window.fixture['tongpin-personal-tasks-v3'].filter(t=>t.seriesId===id).map(t=>t.id),series[0].seriesId),series.slice(0,2).map(t=>t.id));
+  assert.equal(await groupedSidebar.count(),1);
+  assert.match(await groupedSidebar.textContent(),/剩余 1 次/);
+  console.log('PASS: repeat sidebar grouped with accurate entry counts, calendar keeps every occurrence, completing one advances the entry and remaining count');
   console.log('PASS: category color selection, rename and remount; weekly recurring dates, independent completion and summaries, stop future preserves past and current');
 } finally { await browser.close(); }
