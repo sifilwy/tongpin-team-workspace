@@ -62,9 +62,20 @@
 .personal-card.done{cursor:grab}
 .personal-card.done:active{cursor:grabbing}
 .personal-pending-list>p{margin:8px 4px;color:#aaaeb7;font-size:9px}
-.personal-drop-preview{position:absolute;z-index:8;left:0;right:0;height:2px;background:#6c5ce7;pointer-events:none;box-shadow:0 0 0 2px rgba(108,92,231,.09)}
-.personal-drop-preview:before{content:"";position:absolute;left:-3px;top:-3px;width:8px;height:8px;border-radius:50%;background:#6c5ce7}
-.personal-drop-preview span{position:absolute;left:5px;top:-16px;padding:2px 5px;border-radius:5px;background:#6c5ce7;color:#fff;font-size:7px;font-weight:700}
+.personal-drop-preview{position:absolute;z-index:8;left:3px;right:3px;box-sizing:border-box;border:2px solid #6c5ce7;border-radius:5px;background:rgba(108,92,231,.15);pointer-events:none;box-shadow:0 0 0 1px #fff;--preview-color:#6c5ce7}
+.personal-drop-preview.has-conflict{border-color:#b97510;background:rgba(219,155,43,.2);--preview-color:#9e6109}
+.personal-drop-preview span{position:absolute;left:0;max-width:100%;padding:3px 5px;border-radius:4px;background:var(--preview-color);color:#fff;font-size:9px;font-weight:700;line-height:1.4;white-space:normal;overflow-wrap:anywhere}
+.personal-drop-preview .personal-preview-start{bottom:100%;margin-bottom:3px}
+.personal-drop-preview .personal-preview-end{top:100%;margin-top:3px}
+.personal-resize-handle{position:absolute;left:0;right:0;height:6px;z-index:4;cursor:ns-resize;touch-action:none}
+.personal-resize-handle.start{top:0}
+.personal-resize-handle.end{bottom:0}
+.personal-resize-handle:after{content:"";position:absolute;left:calc(50% - 9px);width:18px;height:2px;border-radius:3px;background:#7569d4;opacity:.35}
+.personal-resize-handle.start:after{top:1px}
+.personal-resize-handle.end:after{bottom:1px}
+.personal-card:hover .personal-resize-handle:after,.personal-v2.is-dragging .personal-resize-handle:after{opacity:1}
+.personal-card.compact .personal-resize-handle{height:3px}
+.personal-card.compact .personal-resize-handle:after{height:1px}
 .personal-card{transition:opacity .14s,box-shadow .14s,transform .14s}
 .personal-card{touch-action:none;user-select:none}
 .personal-card time{white-space:nowrap}

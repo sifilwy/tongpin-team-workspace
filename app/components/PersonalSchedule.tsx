@@ -110,13 +110,13 @@ export default function PersonalSchedule() {
   const [newCategoryName, setNewCategoryName] = useState("");
   const [renamingCategory, setRenamingCategory] = useState<string | null>(null);
   const [categoryDraft, setCategoryDraft] = useState("");
-  const [dragPreview, setDragPreview] = useState<{ due: string; startTime: string } | null>(null);
-  const dragPreviewRef = useRef<{ due: string; startTime: string } | null>(null);
+  const [dragPreview, setDragPreview] = useState<{ due: string; startTime: string; endTime: string } | null>(null);
+  const dragPreviewRef = useRef<{ due: string; startTime: string; endTime: string } | null>(null);
   const tasksRef = useRef<PersonalTask[]>(starterTasks);
   const edgeHover = useRef<{ direction: -1 | 0 | 1; since: number }>({ direction: 0, since: 0 });
   const edgeTimer = useRef<number | null>(null);
   const dragOffsetY = useRef(0);
-  const pointerDrag = useRef<{ id: number; pointerId: number; startX: number; startY: number; active: boolean } | null>(null);
+  const pointerDrag = useRef<{ id: number; pointerId: number; startX: number; startY: number; active: boolean; edge?: "start" | "end"; track?: HTMLElement; originalStart?: number; originalEnd?: number } | null>(null);
   const suppressClick = useRef(false);
 
   useEffect(() => { tasksRef.current = tasks; }, [tasks]);
@@ -130,13 +130,19 @@ export default function PersonalSchedule() {
   useEffect(() => {
     const move = (event: PointerEvent) => movePointerDrag(event);
     const finish = (event: PointerEvent) => finishPointerDrag(event);
+    const cancel = () => { pointerDrag.current = null; endDrag(); };
+    const escape = (event: KeyboardEvent) => { if (event.key === "Escape") cancel(); };
     window.addEventListener("pointermove", move);
     window.addEventListener("pointerup", finish);
-    window.addEventListener("pointercancel", finish);
+    window.addEventListener("pointercancel", cancel);
+    window.addEventListener("keydown", escape);
+    window.addEventListener("blur", cancel);
     return () => {
       window.removeEventListener("pointermove", move);
       window.removeEventListener("pointerup", finish);
-      window.removeEventListener("pointercancel", finish);
+      window.removeEventListener("pointercancel", cancel);
+      window.removeEventListener("keydown", escape);
+      window.removeEventListener("blur", cancel);
     };
   }, [allView, dragPreview, owner, tasks]);
   useEffect(() => () => {
@@ -226,16 +232,16 @@ export default function PersonalSchedule() {
     const task = tasks.find((item) => item.id === id);
     if (!task) return;
     const start = toMinutes(startTime);
-    const duration = Math.max(30, toMinutes(task.endTime) - toMinutes(task.startTime));
+    const duration = Math.max(15, toMinutes(task.endTime) - toMinutes(task.startTime));
     moveTask(id, { due, owner: allView ? task.owner : owner, startTime, endTime: toTime(Math.min(DAY_END, start + duration)) });
   }
 
   function pointerPreview(clientY: number, track: HTMLElement, due: string) {
     const bounds = track.getBoundingClientRect();
     const moving = tasks.find((task) => task.id === pointerDrag.current?.id);
-    const duration = moving ? Math.max(30, toMinutes(moving.endTime) - toMinutes(moving.startTime)) : 60;
+    const duration = moving ? Math.max(15, toMinutes(moving.endTime) - toMinutes(moving.startTime)) : 60;
     const safeStart = snapStart({ clientY, trackTop: bounds.top, trackHeight: bounds.height, grabOffset: dragOffsetY.current, duration, dayStart: DAY_START, dayEnd: DAY_END });
-    const preview = { due, startTime: toTime(safeStart) };
+    const preview = { due, startTime: toTime(safeStart), endTime: toTime(safeStart + duration) };
     dragPreviewRef.current = preview;
     setDragPreview(preview);
     setDropKey(due);
@@ -250,6 +256,14 @@ export default function PersonalSchedule() {
     pointerDrag.current = { id, pointerId: event.pointerId, startX: event.clientX, startY: event.clientY, active: false };
   }
 
+  function startResize(event: ReactPointerEvent<HTMLElement>, task: PersonalTask, edge: "start" | "end") {
+    if (event.button !== 0 || !event.isPrimary) return;
+    event.preventDefault(); event.stopPropagation(); setMenu(null);
+    const track = event.currentTarget.closest<HTMLElement>(".personal-day-track");
+    if (!track) return;
+    pointerDrag.current = { id: task.id, pointerId: event.pointerId, startX: event.clientX, startY: event.clientY, active: false, edge, track, originalStart: toMinutes(task.startTime), originalEnd: toMinutes(task.endTime) };
+  }
+
   function movePointerDrag(event: Pick<PointerEvent, "pointerId" | "clientX" | "clientY">) {
     const pointer = pointerDrag.current;
     if (!pointer || pointer.pointerId !== event.pointerId) return;
@@ -257,6 +271,21 @@ export default function PersonalSchedule() {
     pointer.active = true;
     suppressClick.current = true;
     setDragId(pointer.id);
+    if (pointer.edge && pointer.track?.dataset.due) {
+      const timeline = pointer.track.closest<HTMLElement>(".personal-timeline-shell");
+      if (timeline) {
+        const bounds = timeline.getBoundingClientRect();
+        if (event.clientY > bounds.bottom - 30) timeline.scrollTop += 14;
+        else if (event.clientY < bounds.top + 60) timeline.scrollTop -= 14;
+      }
+      const bounds = pointer.track.getBoundingClientRect();
+      const minute = Math.round((DAY_START + (event.clientY - bounds.top) / bounds.height * (DAY_END - DAY_START)) / 15) * 15;
+      const start = pointer.edge === "start" ? Math.max(DAY_START, Math.min(pointer.originalEnd! - 15, minute)) : pointer.originalStart!;
+      const end = pointer.edge === "end" ? Math.min(DAY_END, Math.max(start + 15, minute)) : pointer.originalEnd!;
+      const preview = { due: pointer.track.dataset.due, startTime: toTime(start), endTime: toTime(end) };
+      dragPreviewRef.current = preview; setDragPreview(preview); setDropKey(preview.due);
+      return;
+    }
     const mainBounds = document.querySelector<HTMLElement>(".personal-main")?.getBoundingClientRect();
     if (mainBounds && event.clientX >= mainBounds.left && event.clientX < mainBounds.left + 32) hoverEdge(-1);
     else if (mainBounds && event.clientX > mainBounds.right - 32) hoverEdge(1);
@@ -293,6 +322,11 @@ export default function PersonalSchedule() {
   function finishPointerDrag(event: Pick<PointerEvent, "pointerId" | "clientX" | "clientY">) {
     const pointer = pointerDrag.current;
     if (!pointer || pointer.pointerId !== event.pointerId) return;
+    if (pointer.edge) {
+      const preview = dragPreviewRef.current;
+      if (pointer.active && preview) moveTask(pointer.id, { startTime: preview.startTime, endTime: preview.endTime });
+      pointerDrag.current = null; endDrag(); return;
+    }
     if (pointer.active) {
       const target = document.elementFromPoint(event.clientX, event.clientY) as HTMLElement | null;
       const track = target?.closest<HTMLElement>(".personal-day-track");
@@ -357,7 +391,9 @@ export default function PersonalSchedule() {
     setMenu({ id, x: Math.min(event.clientX, window.innerWidth - 185), y: Math.min(event.clientY, window.innerHeight - 210) });
   }
 
-  return <section className="personal-v2">
+  const movingTask = tasks.find(task => task.id === dragId);
+  const previewConflicts = dragPreview ? tasks.filter(task => task.id !== dragId && task.owner === movingTask?.owner && task.due === dragPreview.due && toMinutes(task.startTime) < toMinutes(dragPreview.endTime) && toMinutes(task.endTime) > toMinutes(dragPreview.startTime)).length : 0;
+  return <section className={`personal-v2 ${dragId !== null ? "is-dragging" : ""}`}>
     <aside className="personal-sidebar">
       <div className="personal-segment">{PEOPLE.map((person) => <button key={person.name} className={owner === person.name && !allView ? "active" : ""} onClick={() => selectPerson(person.name)}>{person.name}</button>)}</div>
         <div className="personal-side-title"><div><strong>{owner} 的待办</strong><span>拖到右侧日期即可安排</span></div><button onClick={() => openNew({ owner, due: null })}>＋</button></div>
@@ -390,11 +426,11 @@ export default function PersonalSchedule() {
         <aside className="personal-time-axis"><header /><div>{HOURS.map((hour) => <span key={hour} style={{ top: `${((hour * 60 - DAY_START) / (DAY_END - DAY_START)) * 100}%` }}>{String(hour).padStart(2, "0")}:00</span>)}</div></aside>
         <div className="personal-calendar">{dates.map((date, index) => {
           const due = iso(date);
-          const dayTasks = filtered.filter((task) => task.due === due).sort((a, b) => toMinutes(a.startTime) - toMinutes(b.startTime));
+          const dayTasks = filtered.filter((task) => task.due === due).map(task => pointerDrag.current?.edge && task.id === dragId && dragPreview ? {...task, ...dragPreview} : task).sort((a, b) => toMinutes(a.startTime) - toMinutes(b.startTime));
           const overlapLayout = computeOverlapLayout(dayTasks);
           return <section key={due} className={`personal-date ${due === iso(now) ? "today" : ""} ${dropKey === due ? "is-over" : ""}`}>
             <header><span>{["周一", "周二", "周三", "周四", "周五", "周六", "周日"][index]}</span><b>{date.getDate()}</b></header>
-            <div className="personal-day-track" data-due={due} onPointerDown={event => beginRange(event, due)} onPointerMove={updateRange} onPointerUp={finishRange} onPointerCancel={cancelRange} onLostPointerCapture={cancelRange}>{newRange?.due === due && <div className="personal-new-range" style={{ top: `${(newRange.start - DAY_START) / (DAY_END - DAY_START) * 100}%`, height: `${(newRange.end - newRange.start) / (DAY_END - DAY_START) * 100}%` }}><span>{toTime(newRange.start)}–{toTime(newRange.end)}</span></div>}{dragPreview?.due === due && <div className="personal-drop-preview" style={{ top: `${((toMinutes(dragPreview.startTime) - DAY_START) / (DAY_END - DAY_START)) * 100}%` }}><span>{dragPreview.startTime}</span></div>}{dayTasks.map((task) => {
+            <div className="personal-day-track" data-due={due} onPointerDown={event => beginRange(event, due)} onPointerMove={updateRange} onPointerUp={finishRange} onPointerCancel={cancelRange} onLostPointerCapture={cancelRange}>{newRange?.due === due && <div className="personal-new-range" style={{ top: `${(newRange.start - DAY_START) / (DAY_END - DAY_START) * 100}%`, height: `${(newRange.end - newRange.start) / (DAY_END - DAY_START) * 100}%` }}><span>{toTime(newRange.start)}–{toTime(newRange.end)}</span></div>}{dragPreview?.due === due && <div className={`personal-drop-preview ${previewConflicts ? "has-conflict" : ""}`} style={{ top: `${((toMinutes(dragPreview.startTime) - DAY_START) / (DAY_END - DAY_START)) * 100}%`, height: `${(toMinutes(dragPreview.endTime) - toMinutes(dragPreview.startTime)) / (DAY_END - DAY_START) * 100}%` }}><span className="personal-preview-start" role="status">{dragPreview.startTime}–{dragPreview.endTime} · {toMinutes(dragPreview.endTime) - toMinutes(dragPreview.startTime)} 分钟{previewConflicts > 0 && ` · 与 ${previewConflicts} 项日程重叠`}</span><span className="personal-preview-end">{dragPreview.endTime}</span></div>}{dayTasks.map((task) => {
               const person = PEOPLE.find((item) => item.name === task.owner)!;
               const start = Math.max(DAY_START, toMinutes(task.startTime));
               const end = Math.min(DAY_END, Math.max(start + 15, toMinutes(task.endTime)));
@@ -404,7 +440,7 @@ export default function PersonalSchedule() {
               return <button key={task.id} data-schedule-id={task.id} title={`${task.title}
 ${task.startTime}–${task.endTime}
 ${task.owner} · ${task.category}${task.note?.trim() ? `
-${task.note}` : ""}`} style={style} draggable={false} className={`personal-card ${end - start <= 30 ? "compact" : ""} ${task.done ? "done" : ""} ${dragId === task.id ? "dragging" : ""}`} onPointerDown={(event) => startPointerDrag(event, task.id)} onClick={() => clickTask(task)} onContextMenu={(event) => openMenu(event, task.id)}><strong>{task.title}</strong><time>{task.startTime}–{task.endTime}</time><small><i style={{ background: person.color }}>{task.owner[0]}</i>{allView && task.owner}<em>{task.category}</em></small>{task.note?.trim() && <span className="personal-card-summary">{task.note}</span>}</button>;
+${task.note}` : ""}`} style={style} draggable={false} className={`personal-card ${end - start <= 30 ? "compact" : ""} ${task.done ? "done" : ""} ${dragId === task.id ? "dragging" : ""}`} onPointerDown={(event) => startPointerDrag(event, task.id)} onClick={() => clickTask(task)} onContextMenu={(event) => openMenu(event, task.id)}><strong>{task.title}</strong><time>{task.startTime}–{task.endTime}</time><small><i style={{ background: person.color }}>{task.owner[0]}</i>{allView && task.owner}<em>{task.category}</em></small>{task.note?.trim() && <span className="personal-card-summary">{task.note}</span>}{(["start", "end"] as const).map(edge => <span key={edge} className={`personal-resize-handle ${edge}`} data-resize-edge={edge} title={edge === "start" ? "拖动调整开始时间" : "拖动调整结束时间"} onPointerDown={event => startResize(event, task, edge)} onClick={event => { event.preventDefault(); event.stopPropagation(); }} />)}</button>;
             })}</div>
           </section>;
         })}</div>
