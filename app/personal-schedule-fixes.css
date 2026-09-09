@@ -120,6 +120,13 @@
 .personal-edit-modal .personal-repeat-weekdays input{width:13px;height:13px;margin:0;padding:0;accent-color:#7564d7}
 .personal-repeat-dialog footer{display:flex;justify-content:flex-end;gap:8px;margin-top:20px}
 .personal-repeat-dialog footer .confirm-repeat{background:#7564d7;color:#fff;border-color:#7564d7}
+.personal-repeat-scope .repeat-scope-title{margin-top:16px;font-weight:600;overflow-wrap:anywhere;color:#544767}
+.personal-repeat-scope p{margin:8px 0;color:#81738f}
+.repeat-scope-choices{display:grid;gap:10px;margin-top:18px}
+.repeat-scope-choices button{display:grid;gap:6px;padding:14px;text-align:left;border:1px solid #ddd4ec;border-radius:10px;background:#faf8fd;color:#675084;cursor:pointer}
+.repeat-scope-choices button:hover,.repeat-scope-choices button:focus-visible{border-color:#9c82c7;background:#f1eafa}
+.repeat-scope-choices strong{font-size:14px}
+.repeat-scope-choices span{font-size:11px;line-height:1.6;color:#887795}
 .personal-card strong{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:1;overflow-wrap:anywhere}
 .personal-card small{min-width:0;overflow:hidden;white-space:nowrap}
 .personal-card small>i{flex-shrink:0}

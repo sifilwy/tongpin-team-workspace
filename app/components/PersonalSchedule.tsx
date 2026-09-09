@@ -6,6 +6,8 @@ import { categoryPalette, personalPalette } from "../lib/personal-colors.mjs";
 import { repeatDates, repeatLabels, repeatDescription } from "../lib/personal-repeat.mjs";
 import PersonalRepeatFields from "./PersonalRepeatFields";
 import { groupPersonalTasks } from "../lib/personal-task-groups.mjs";
+import { applyRepeatEdit, changedTaskFields, laterOccurrence, scheduleFields } from "../lib/personal-repeat-edit.mjs";
+import PersonalRepeatScope from "./PersonalRepeatScope";
 
 import { CSSProperties, FormEvent, MouseEvent, PointerEvent as ReactPointerEvent, useEffect, useMemo, useRef, useState } from "react";
 import { computeOverlapLayout, snapStart, toMinutes, toTime } from "../lib/personal-layout.mjs";
@@ -122,6 +124,7 @@ export default function PersonalSchedule() {
   const [modalOwner, setModalOwner] = useState<Owner>("xzx");
   const [modalDue, setModalDue] = useState("");
   const [formError, setFormError] = useState("");
+  const [repeatChange, setRepeatChange] = useState<{id:number;patch:Partial<PersonalTask>;beforeId?:number;fromEditor:boolean} | null>(null);
   const [menu, setMenu] = useState<{ id: number; x: number; y: number } | null>(null);
   const [addingCategory, setAddingCategory] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState("");
@@ -220,6 +223,16 @@ export default function PersonalSchedule() {
   }
 
   function moveTask(id: number, patch: Partial<PersonalTask>, beforeId?: number) {
+    const task = tasks.find(item=>item.id===id);
+    if (!task) return;
+    const changed = changedTaskFields(task,patch);
+    if (task.seriesId && Object.keys(changed).some(key=>scheduleFields.includes(key))) {
+      setRepeatChange({id,patch:changed,beforeId,fromEditor:false}); return;
+    }
+    moveSingleTask(id,changed,beforeId);
+  }
+
+  function moveSingleTask(id: number, patch: Partial<PersonalTask>, beforeId?: number) {
     setTasks((current) => {
       const moving = current.find((task) => task.id === id);
       if (!moving) return current;
@@ -233,6 +246,15 @@ export default function PersonalSchedule() {
       }
       return remaining;
     });
+  }
+
+  function confirmRepeatChange(scope: "single" | "following") {
+    if (!repeatChange) return;
+    const {id,patch,beforeId,fromEditor} = repeatChange;
+    if(scope === "single" && !fromEditor) moveSingleTask(id,patch,beforeId);
+    else setTasks(current=>applyRepeatEdit(current,id,patch,scope));
+    setRepeatChange(null);
+    if(fromEditor) {setEditing(null);setNewDefaults(null);}
   }
 
   function cancelEdgeHover() {
@@ -388,6 +410,12 @@ export default function PersonalSchedule() {
     const endTime = toMinutes(rawEnd) > toMinutes(startTime) ? rawEnd : toTime(Math.min(DAY_END, toMinutes(startTime) + 30));
     const patch = { title: String(data.get("title") || "").trim(), owner: selectedOwner, category: selectedCategory, due, note: String(data.get("note") || "").trim(), startTime, endTime };
     if (!patch.title) return;
+    if (editing?.seriesId) {
+      const changed=changedTaskFields(editing,patch);
+      if(Object.keys(changed).some(key=>scheduleFields.includes(key))) {
+        setRepeatChange({id:editing.id,patch:changed,fromEditor:true}); return;
+      }
+    }
     const rule = String(data.get("repeatRule") || "none");
     if (rule !== "none" && !editing?.seriesId) {
       try {
@@ -454,7 +482,7 @@ export default function PersonalSchedule() {
             const activeEntries = groupPersonalTasks(activeTasks);
             const opened = openCategories[owner].includes(item);
             if (renamingCategory === item) return <form className="personal-category-form" key={item} onSubmit={renameCategory}><input autoFocus aria-label="修改分类名称" value={categoryDraft} onChange={(event) => setCategoryDraft(event.target.value)} onFocus={(event) => event.currentTarget.select()} /><button aria-label="保存分类名称">✓</button><button type="button" aria-label="取消修改分类" onClick={() => { setRenamingCategory(null); setCategoryDraft(""); }}>×</button></form>;
-            const renderTask = ({task, count}: {task: PersonalTask; count: number}, status: "pending" | "active") => <button key={task.seriesId || task.id} data-pending-id={task.id} data-repeat-group={task.seriesId} title={task.seriesId ? `本次：${task.due || "待安排"} ${task.startTime}–${task.endTime}；打开或拖动只操作这一次` : undefined} draggable={false} className={`${dragId === task.id ? "dragging" : ""} ${dropKey === `list-${task.id}` ? "insert-before" : ""}`} onPointerDown={(event) => startPointerDrag(event, task.id)} onClick={() => clickTask(task)} onContextMenu={(event) => openMenu(event, task.id)}><strong>{task.title}</strong><small>{status === "pending" ? "待安排" : `${task.seriesId ? "最近未完成" : "正在进行"} · ${task.due?.slice(5).replace("-", "/")}`}</small>{task.seriesId && <span className="personal-series-count">↻ 重复 · 剩余 {count} 次</span>}</button>;
+            const renderTask = ({task, count}: {task: PersonalTask; count: number}, status: "pending" | "active") => <button key={task.seriesId || task.id} data-pending-id={task.id} data-repeat-group={task.seriesId} title={task.seriesId ? `本次：${task.due || "待安排"} ${task.startTime}–${task.endTime}；打开或拖动后可选择修改范围` : undefined} draggable={false} className={`${dragId === task.id ? "dragging" : ""} ${dropKey === `list-${task.id}` ? "insert-before" : ""}`} onPointerDown={(event) => startPointerDrag(event, task.id)} onClick={() => clickTask(task)} onContextMenu={(event) => openMenu(event, task.id)}><strong>{task.title}</strong><small>{status === "pending" ? "待安排" : `${task.seriesId ? "最近未完成" : "正在进行"} · ${task.due?.slice(5).replace("-", "/")}`}</small>{task.seriesId && <span className="personal-series-count">↻ 重复 · 剩余 {count} 次</span>}</button>;
             return <section className="personal-category-section" key={item} style={categoryStyle(owner, item)}>
               <div data-personal-category={item} className={`personal-category-row ${dropKey === `category-${item}` ? "is-over" : ""}`}><button className={opened ? "active" : ""} aria-expanded={opened} onClick={() => toggleCategory(item)}><i>{opened ? "⌄" : "›"}</i><span>{item}</span><b>{pendingEntries.length + activeEntries.length}</b></button><button type="button" className="personal-category-color" aria-label={`设置${item}配色`} title="分类配色" aria-expanded={colorCategory === item} onClick={() => setColorCategory(colorCategory === item ? null : item)}><i /></button><button className="personal-category-rename" title="修改分类名称" aria-label={`修改${item}分类名称`} onClick={() => { setAddingCategory(false); setRenamingCategory(item); setCategoryDraft(item); }}>✎</button></div>
               {colorCategory === item && <div className="personal-color-picker" role="group" aria-label={`${item}配色`}>{personalPalette.map(palette => <button key={palette.id} type="button" aria-label={palette.name} aria-pressed={categoryPalette(savedColors, owner, item).id === palette.id} style={{background: palette.color}} onClick={() => { setSavedColors(current => ({...current, [owner]: {...current?.[owner], [item]: palette.id}})); setColorCategory(null); }} />)}</div>}{opened && <div className="personal-category-panel">
@@ -499,6 +527,7 @@ ${task.note}` : ""}`} style={style} draggable={false} className={`personal-card 
 
     {menu && (() => { const task = tasks.find((item) => item.id === menu.id); if (!task) return null; return <div className="personal-context" style={{ left: menu.x, top: menu.y }} onPointerDown={(event) => event.stopPropagation()}><strong>{task.title}</strong><button onClick={() => { setTasks((current) => current.map((item) => item.id === task.id ? { ...item, done: !item.done } : item)); setMenu(null); }}>{task.done ? "恢复未完成" : "标记完成"}</button><button onClick={() => { openEditor(task); setMenu(null); }}>修改任务</button>{task.due && <button onClick={() => { moveTask(task.id, { due: null, done: false }); setMenu(null); }}>移回待办</button>}{task.seriesId && <button onClick={() => stopRepeating(task)}>停止后续重复</button>}<button className="danger" onClick={() => { if (window.confirm(`确认删除“${task.title}”？`)) setTasks((current) => current.filter((item) => item.id !== task.id)); setMenu(null); }}>删除任务</button></div>; })()}
 
-    {(editing || newDefaults) && <div className="personal-modal-bg"><form className="personal-edit-modal" onSubmit={submitTask}><header><strong>{editing ? "修改个人任务" : "新建个人任务"}</strong><button type="button" onClick={() => { setEditing(null); setNewDefaults(null); }}>×</button></header><label>任务名称<input name="title" autoFocus required defaultValue={editing?.title || ""} placeholder="准备完成什么" /></label><div><label>成员<select name="owner" value={modalOwner} onChange={(event) => setModalOwner(event.target.value as Owner)}>{PEOPLE.map((person) => <option key={person.name}>{person.name}</option>)}</select></label><label>个人分类<select key={modalOwner} name="category" defaultValue={editing?.owner === modalOwner && categories[modalOwner].includes(editing.category) ? editing.category : categories[modalOwner][0]}>{categories[modalOwner].map((item) => <option key={item}>{item}</option>)}</select></label></div><label>安排日期<input name="due" type="date" value={modalDue} onChange={event => setModalDue(event.target.value)} /><small>留空则进入左侧待办</small></label><div className="personal-time-fields"><label>开始时间<input name="startTime" type="time" step="900" defaultValue={editing?.startTime || newDefaults?.startTime || "09:00"} /></label><label>结束时间<input name="endTime" type="time" step="900" defaultValue={editing?.endTime || newDefaults?.endTime || "10:00"} /></label></div>{editing?.seriesId ? <section className="personal-repeat-info"><strong>{editing.repeatRule ? repeatDescription(editing.repeatRule, editing.repeatDays) : "重复日程"} · 至 {editing.repeatUntil}</strong><p>这里的修改只影响本次日程。</p><button type="button" onClick={() => stopRepeating(editing)}>停止后续重复</button></section> : <PersonalRepeatFields due={modalDue} />}{formError && <p className="personal-form-error" role="alert">{formError}</p>}<label>总结<textarea name="note" defaultValue={editing?.note || ""} placeholder="写下这项日程的总结（选填）" /></label><button className="save">保存</button></form></div>}
+    {(editing || newDefaults) && <div className="personal-modal-bg"><form className="personal-edit-modal" onSubmit={submitTask}><header><strong>{editing ? "修改个人任务" : "新建个人任务"}</strong><button type="button" onClick={() => { setEditing(null); setNewDefaults(null); }}>×</button></header><label>任务名称<input name="title" autoFocus required defaultValue={editing?.title || ""} placeholder="准备完成什么" /></label><div><label>成员<select name="owner" value={modalOwner} onChange={(event) => setModalOwner(event.target.value as Owner)}>{PEOPLE.map((person) => <option key={person.name}>{person.name}</option>)}</select></label><label>个人分类<select key={modalOwner} name="category" defaultValue={editing?.owner === modalOwner && categories[modalOwner].includes(editing.category) ? editing.category : categories[modalOwner][0]}>{categories[modalOwner].map((item) => <option key={item}>{item}</option>)}</select></label></div><label>安排日期<input name="due" type="date" value={modalDue} onChange={event => setModalDue(event.target.value)} /><small>留空则进入左侧待办</small></label><div className="personal-time-fields"><label>开始时间<input name="startTime" type="time" step="900" defaultValue={editing?.startTime || newDefaults?.startTime || "09:00"} /></label><label>结束时间<input name="endTime" type="time" step="900" defaultValue={editing?.endTime || newDefaults?.endTime || "10:00"} /></label></div>{editing?.seriesId ? <section className="personal-repeat-info"><strong>{editing.repeatRule ? repeatDescription(editing.repeatRule, editing.repeatDays) : "重复日程"} · 至 {editing.repeatUntil}</strong><p>保存时可选择修改本次或本次及以后。总结仍只属于本次。</p><button type="button" onClick={() => stopRepeating(editing)}>停止后续重复</button></section> : <PersonalRepeatFields due={modalDue} />}{formError && <p className="personal-form-error" role="alert">{formError}</p>}<label>总结<textarea name="note" defaultValue={editing?.note || ""} placeholder="写下这项日程的总结（选填）" /></label><button className="save">保存</button></form></div>}
+    {repeatChange && (() => { const task=tasks.find(item=>item.id===repeatChange.id); return task ? <PersonalRepeatScope title={task.title} date={task.due || ""} futureCount={tasks.filter(item=>laterOccurrence(item,task)).length} onChoose={confirmRepeatChange} onCancel={()=>setRepeatChange(null)} /> : null; })()}
   </section>;
 }
