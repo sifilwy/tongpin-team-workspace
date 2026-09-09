@@ -78,7 +78,7 @@ export default function WeeklyPlanDialog({ owner, week, onClose }: {owner:string
           }}>{weekdays[index]}<span className={draft.days[date]?.trim()?'has-plan':''} aria-label={draft.days[date]?.trim()?'已填写':undefined} /></button>)}</div>
           <div id="plan-day-panel" role="tabpanel" aria-labelledby={`plan-day-${selectedDay}`} className="weekly-plan-day">
             <time dateTime={dates[selectedDay]}>{dates[selectedDay]}</time>
-            <textarea aria-label={`${weekdays[selectedDay]}计划`} rows={5} maxLength={10000} value={draft.days[dates[selectedDay]] || ''} onChange={event=>setDraft({...draft,days:{...draft.days,[dates[selectedDay]]:event.target.value}})} placeholder={`写下${weekdays[selectedDay]}的计划…`} />
+            <textarea aria-label={`${weekdays[selectedDay]}计划`} rows={5} maxLength={10000} value={draft.days[dates[selectedDay]] || ''} onChange={event=>setDraft({...draft,days:{...draft.days,[dates[selectedDay]]:event.target.value}})} placeholder={`写下${weekdays[selectedDay]}的计划，记录，总结`} />
           </div>
           <details className="weekly-plan-summary"><summary>本周总结<span>{draft.summary.trim()?'已填写':'展开'}</span></summary><textarea aria-label="本周总结" rows={3} maxLength={10000} value={draft.summary} onChange={event=>setDraft({...draft,summary:event.target.value})} placeholder="记录本周的收获和改进…" /></details>
         </fieldset>
