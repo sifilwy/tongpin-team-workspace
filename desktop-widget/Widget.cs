@@ -21,13 +21,14 @@ static class Program
         bool verify = Array.IndexOf(args, "--verify") >= 0;
         bool fresh;
         using (var mutex = new Mutex(true, "Local\\TongpinWidget" + (verify ? "Verification" : ""), out fresh))
+        using (var reveal = new EventWaitHandle(false, EventResetMode.AutoReset, "Local\\TongpinWidgetReveal" + (verify ? "Verification" : "")))
         {
-            if (!fresh) return;
+            if (!fresh) { reveal.Set(); return; }
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
             ServicePointManager.SecurityProtocol = SecurityProtocolType.Tls12;
             string code = Array.IndexOf(args, "--signin-stdin") >= 0 ? Console.In.ReadLine() : null;
-            Application.Run(new Widget(verify, code));
+            Application.Run(new Widget(verify, code, reveal));
         }
     }
 }
@@ -41,7 +42,7 @@ sealed class Widget : Form
     readonly WebView2 browser = new WebView2();
     readonly NotifyIcon tray = new NotifyIcon();
     readonly ContextMenuStrip menu = new ContextMenuStrip();
-    readonly ToolStripMenuItem positionItem = new ToolStripMenuItem("移动位置");
+
     readonly Label status = new Label();
     readonly Panel header = new Panel();
     readonly Button collapseButton = new Button();
@@ -50,19 +51,19 @@ sealed class Widget : Form
     readonly Form bubbleWindow = new Form();
     readonly ToolTip tips = new ToolTip();
     readonly System.Windows.Forms.Timer recovery = new System.Windows.Forms.Timer();
-    bool attached, closing, testing, collapsed, bubbleDragged, webToolbar;
+    readonly System.Windows.Forms.Timer activation = new System.Windows.Forms.Timer();
+    bool closing, testing, collapsed, bubbleDragged, webToolbar;
     float scale;
     Point dragStart, bubbleStart;
     Rectangle expandedBounds;
     Rectangle gestureBounds;
     string gesture = "";
-    IntPtr desktop;
     Rectangle desired;
     string renderHealth = "starting";
     bool probing;
     readonly JavaScriptSerializer json = new JavaScriptSerializer();
 
-    public Widget(bool verification, string code)
+    public Widget(bool verification, string code, EventWaitHandle reveal)
     {
         verify = verification; signInCode = code;
         dataPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), verify ? "TongpinWidgetVerification" : "TongpinWidget");
@@ -73,7 +74,7 @@ sealed class Widget : Form
         StartPosition = FormStartPosition.Manual;
         AutoScaleMode = AutoScaleMode.None;
         FormBorderStyle = FormBorderStyle.None;
-        ShowInTaskbar = false;
+        ShowInTaskbar = true;
         var working = Screen.PrimaryScreen.WorkingArea;
         using (var g = CreateGraphics()) scale = g.DpiX / 96f;
         int width = Math.Min((int)(410 * scale), working.Width - 40);
@@ -103,7 +104,8 @@ sealed class Widget : Form
         bubbleWindow.FormBorderStyle = FormBorderStyle.None;
         bubbleWindow.AutoScaleMode = AutoScaleMode.None;
         bubbleWindow.StartPosition = FormStartPosition.Manual;
-        bubbleWindow.ShowInTaskbar = false;
+        bubbleWindow.ShowInTaskbar = true;
+        bubbleWindow.Icon = Icon;
         bubbleWindow.Text = "同屏 · 点击展开";
         bubbleWindow.BackColor = Color.FromArgb(75, 112, 181);
         bubbleWindow.ClientSize = new Size((int)(54 * scale), (int)(54 * scale));
@@ -125,25 +127,24 @@ sealed class Widget : Form
         menu.Items.Add("展开日程", null, delegate { Expand(); });
         menu.Items.Add("收起为小圆点", null, delegate { Collapse(); });
         menu.Items.Add("刷新日程", null, delegate { if (browser.CoreWebView2 != null) browser.Reload(); });
-        positionItem.Click += delegate { if (collapsed) Expand(); if (attached) Detach(); else Attach(true); };
-        menu.Items.Add(positionItem);
-        menu.Items.Add("恢复右侧位置", null, delegate { if (collapsed) Expand(); if (!attached) Attach(false); var area = Screen.PrimaryScreen.WorkingArea; desired = new Rectangle(area.Right - Width - 22, area.Top + 24, Width, Math.Min(Height, area.Height - 48)); Attach(true); });
+        menu.Items.Add("恢复右侧位置", null, delegate { ResetPosition(); });
         menu.Items.Add(new ToolStripSeparator());
         menu.Items.Add("退出组件", null, delegate { Close(); });
         tray.Text = "同屏";
         tray.Icon = Icon;
         tray.ContextMenuStrip = menu;
         tray.Visible = true;
-        tray.DoubleClick += delegate { if (collapsed) Expand(); else if (attached) Detach(); else Activate(); };
+        tray.DoubleClick += delegate { Reveal(); };
+        activation.Interval = 300;
+        activation.Tick += delegate { if (!closing && reveal.WaitOne(0)) Reveal(); };
+        activation.Start();
         recovery.Interval = 5000;
         recovery.Tick += async delegate {
-            if (attached && (!Native.IsWindow(desktop) || Native.GetParent(Handle) != desktop)) { if (collapsed) Expand(); Attach(false); }
-            if (collapsed && Native.GetParent(bubbleWindow.Handle) != desktop) AttachBubble();
             if (!verify && !closing) { await ProbeRenderer(); WriteStatus(collapsed ? "collapsed" : renderHealth); }
         };
-        Shown += async delegate { Attach(false); recovery.Start(); await InitializeBrowser(); };
+        Shown += async delegate { PositionOnDesktop(); recovery.Start(); await InitializeBrowser(); };
         FormClosing += delegate(object sender, FormClosingEventArgs e) { closing = true; recovery.Stop(); if (!verify) { SavePosition(); WriteStatus("closed:" + e.CloseReason); } tray.Visible = false; };
-        FormClosed += delegate { bubbleWindow.Dispose(); browser.Dispose(); tray.Dispose(); menu.Dispose(); recovery.Dispose(); tips.Dispose(); };
+        FormClosed += delegate { activation.Dispose(); bubbleWindow.Dispose(); browser.Dispose(); tray.Dispose(); menu.Dispose(); recovery.Dispose(); tips.Dispose(); };
         Resize += delegate { LayoutSurface(); RoundCorners(); };
         LayoutSurface();
         Microsoft.Win32.SystemEvents.DisplaySettingsChanged += DisplayChanged;
@@ -173,13 +174,11 @@ sealed class Widget : Form
     {
         if (collapsed || closing) return;
         gesture = "";
-        if (!attached) Attach(true);
-        if (!attached) return;
         expandedBounds = desired;
         collapsed = true;
         int diameter = (int)(54 * scale);
         desired = new Rectangle(expandedBounds.Right - diameter, expandedBounds.Top, diameter, diameter);
-        ClampPosition(); AttachBubble();
+        ClampPosition(); ShowBubble();
         Hide();
         WriteStatus("collapsed");
     }
@@ -189,27 +188,42 @@ sealed class Widget : Form
         collapsed = false;
         desired = expandedBounds;
         bubbleWindow.Hide();
-        ClampPosition(); PositionOnDesktop(); Show(); LayoutSurface(); RoundCorners();
+        ClampPosition(); PositionOnDesktop(); Show(); WindowState = FormWindowState.Normal; Activate(); LayoutSurface(); RoundCorners();
         WriteStatus("expanded");
     }
-    void AttachBubble()
+    void ShowBubble()
     {
-        int style = Native.GetWindowLong(bubbleWindow.Handle, -16);
-        Native.SetWindowLong(bubbleWindow.Handle, -16, (style & ~unchecked((int)0x80000000)) | 0x40000000);
-        Native.SetParent(bubbleWindow.Handle, desktop);
         bubbleWindow.Show();
-        PositionOnDesktop();
+        // The first Show applies monitor DPI; size the circle after that change.
+        bubbleWindow.Bounds = desired;
+        var previous = bubbleWindow.Region;
+        using (var circle = new GraphicsPath()) { circle.AddEllipse(bubbleWindow.ClientRectangle); bubbleWindow.Region = new Region(circle); }
+        if (previous != null) previous.Dispose();
     }
     void PositionOnDesktop()
     {
-        var point = new Native.Point { X = desired.X, Y = desired.Y };
-        Native.ScreenToClient(desktop, ref point);
-        Native.SetWindowPos(collapsed ? bubbleWindow.Handle : Handle, IntPtr.Zero, point.X, point.Y, desired.Width, desired.Height, 0x0010 | 0x0020 | 0x0040);
+        // Both surfaces are independent top-level windows. Never attach input
+        // queues to Explorer or alter the desktop's window hierarchy.
+        if (collapsed) bubbleWindow.Bounds = desired;
+        else Bounds = desired;
+    }
+    void Reveal()
+    {
+        if (collapsed) Expand();
+        Show(); WindowState = FormWindowState.Normal; Activate();
+    }
+    void ResetPosition()
+    {
+        Reveal();
+        var area = Screen.PrimaryScreen.WorkingArea;
+        desired = new Rectangle(area.Right - Width - 22, area.Top + 24, Width, Math.Min(Height, area.Height - 48));
+        ClampPosition(); PositionOnDesktop();
+        if (!verify) SavePosition();
     }
 
     void DisplayChanged(object sender, EventArgs e)
     {
-        if (!closing && IsHandleCreated) BeginInvoke(new Action(delegate { ClampPosition(); if (collapsed) AttachBubble(); else if (attached) Attach(false); RestoreRendering(); }));
+        if (!closing && IsHandleCreated) BeginInvoke(new Action(delegate { ClampPosition(); PositionOnDesktop(); RestoreRendering(); }));
     }
     void PowerChanged(object sender, Microsoft.Win32.PowerModeChangedEventArgs e)
     {
@@ -247,7 +261,7 @@ sealed class Widget : Form
     }
     void SavePosition()
     {
-        try { if (!attached) desired = Bounds; Rectangle saved = collapsed ? expandedBounds : desired; File.WriteAllText(Path.Combine(dataPath, "position.txt"), saved.X + "," + saved.Y + "," + saved.Width + "," + saved.Height); } catch { }
+        try { if (!collapsed && WindowState == FormWindowState.Normal) desired = Bounds; Rectangle saved = collapsed ? expandedBounds : desired; File.WriteAllText(Path.Combine(dataPath, "position.txt"), saved.X + "," + saved.Y + "," + saved.Width + "," + saved.Height); } catch { }
     }
     void HandleGesture(string command)
     {
@@ -255,8 +269,7 @@ sealed class Widget : Form
         if (command.StartsWith("gesture-start:")) {
             string kind = command.Substring(14);
             if (Array.IndexOf(new[] { "move", "n", "s", "e", "w", "ne", "nw", "se", "sw" }, kind) < 0) return;
-            if (!attached) Attach(false);
-            if (!attached) return;
+            desired = Bounds;
             gestureBounds = desired; gesture = kind;
         }
         else if (command == "gesture-end") { gesture = ""; if (!verify) SavePosition(); }
@@ -281,8 +294,7 @@ sealed class Widget : Form
     {
         if (Width < 40 || Height < 40) return;
         Region old = Region;
-        if (!attached) Region = null;
-        else using (var path = new GraphicsPath()) {
+        using (var path = new GraphicsPath()) {
             if (collapsed) { path.AddEllipse(0, 0, Width, Height); }
             else {
             int d = 28;
@@ -293,52 +305,11 @@ sealed class Widget : Form
         }
         if (old != null) old.Dispose();
     }
-    void Attach(bool save)
-    {
-        if (!attached && FormBorderStyle != FormBorderStyle.None) desired = Bounds;
-        desktop = Native.GetShellWindow();
-        if (desktop == IntPtr.Zero) { status.Text = "桌面未就绪 · 请稍后固定"; return; }
-        ClampPosition();
-        FormBorderStyle = FormBorderStyle.None;
-        ShowInTaskbar = false;
-        int style = Native.GetWindowLong(Handle, -16);
-        Native.SetWindowLong(Handle, -16, (style & ~unchecked((int)0x80000000)) | 0x40000000);
-        Native.SetParent(Handle, desktop);
-        attached = Native.GetParent(Handle) == desktop;
-        if (!attached) { Detach(); status.Text = "暂时无法嵌入 · 菜单可重试"; WriteStatus("attach-failed"); return; }
-        var point = new Native.Point { X = desired.X, Y = desired.Y };
-        Native.ScreenToClient(desktop, ref point);
-        Native.SetWindowPos(Handle, IntPtr.Zero, point.X, point.Y, desired.Width, desired.Height, 0x0010 | 0x0020 | 0x0040);
-        positionItem.Text = "移动位置";
-        status.Text = "同屏";
-        RoundCorners();
-        if (save && !verify) SavePosition();
-        WriteStatus("attached");
-    }
-    void Detach()
-    {
-        Native.Rect rectangle; Native.GetWindowRect(Handle, out rectangle);
-        desired = new Rectangle(rectangle.Left, rectangle.Top, rectangle.Right-rectangle.Left, rectangle.Bottom-rectangle.Top);
-        Native.SetParent(Handle, IntPtr.Zero);
-        int style = Native.GetWindowLong(Handle, -16);
-        Native.SetWindowLong(Handle, -16, (style & ~0x40000000) | unchecked((int)0x80000000));
-        attached = false;
-        FormBorderStyle = FormBorderStyle.SizableToolWindow;
-        ShowInTaskbar = true;
-        Bounds = desired;
-        MinimumSize = new Size(340, 480);
-        positionItem.Text = "固定到桌面";
-        status.Text = "拖动标题栏 · 菜单固定到桌面";
-        RoundCorners();
-        Show(); Activate();
-    }
-
     async Task InitializeBrowser()
     {
         try
         {
-            // Software rendering is a scoped workaround for this desktop child's
-            // repeatedly black GPU-composited surface, not an OS/browser setting.
+            // Keep the software renderer that resolved black surfaces on this PC.
             var options = new CoreWebView2EnvironmentOptions { AdditionalBrowserArguments = "--disable-gpu" };
             var environment = await CoreWebView2Environment.CreateAsync(null, Path.Combine(dataPath, "WebView2"), options);
             await browser.EnsureCoreWebView2Async(environment);
@@ -362,8 +333,7 @@ sealed class Widget : Form
                 else if (command == "collapse") Collapse();
                 else if (command == "close") BeginInvoke(new Action(Close));
                 else if (command == "refresh") RestoreRendering();
-                else if (command == "move") { if (collapsed) Expand(); if (attached) Detach(); else Attach(true); core.PostWebMessageAsString(attached ? "attached" : "detached"); }
-                else if (command == "reset") { if (collapsed) Expand(); if (!attached) Attach(false); var area = Screen.PrimaryScreen.WorkingArea; desired = new Rectangle(area.Right - Width - 22, area.Top + 24, Width, Math.Min(Height, area.Height - 48)); Attach(true); }
+                else if (command == "reset") ResetPosition();
             };
             using (var stream = System.Reflection.Assembly.GetExecutingAssembly().GetManifestResourceStream("WidgetUI"))
             using (var reader = new StreamReader(stream, Encoding.UTF8)) await core.AddScriptToExecuteOnDocumentCreatedAsync(reader.ReadToEnd());
@@ -424,8 +394,8 @@ sealed class Widget : Form
                 if (await browser.ExecuteScriptAsync("!!document.querySelector('.desk-sync') && document.querySelector('.desk-sync').textContent.includes('已同步')") == "true") { synced = true; break; }
             }
             if (!synced) throw new InvalidOperationException("Sync not ready");
-            bool embedded = attached && Native.GetParent(Handle) == Native.GetShellWindow() && (Native.GetWindowLong(Handle, -16) & 0x40000000) != 0 && (Native.GetWindowLong(Handle, -20) & 8) == 0;
-            if (!embedded) throw new InvalidOperationException("Not embedded");
+            bool independent = Native.GetParent(Handle) == IntPtr.Zero && (Native.GetWindowLong(Handle, -16) & 0x40000000) == 0 && !TopMost && ShowInTaskbar;
+            if (!independent) throw new InvalidOperationException("Window is not independent");
             Rectangle initialBounds = desired;
             await VerifyPointerGesture("header", -40, 10, false);
             if (desired.X != initialBounds.X - 40 || desired.Y != initialBounds.Y + 10) throw new InvalidOperationException("Direct header drag failed");
@@ -443,16 +413,15 @@ sealed class Widget : Form
             await Task.Delay(16000);
             if (before == await browser.ExecuteScriptAsync("document.querySelector('.desk-sync').title")) throw new InvalidOperationException("Refresh failed");
             await CaptureHealthyPreview("preview.png");
-            Detach();
-            if (Native.GetParent(Handle) != IntPtr.Zero) throw new InvalidOperationException("Detach failed");
-            Attach(false);
-            if (!attached) throw new InvalidOperationException("Reattach failed");
+            WindowState = FormWindowState.Minimized;
+            Reveal();
+            if (WindowState != FormWindowState.Normal || Native.GetParent(Handle) != IntPtr.Zero) throw new InvalidOperationException("Restore independent window failed");
             var fullSize = Size;
             if (!webToolbar || header.Visible || browser.Top != 0) throw new InvalidOperationException("Native header still visible");
             if (await browser.ExecuteScriptAsync("(()=>{let h=document.getElementById('tongpin-widget-controls'),s=h.shadowRoot;return ['collapse','close'].every(id=>{let b=s.getElementById(id),r=b.getBoundingClientRect();return r.width>=36 && r.height>=30 && s.elementFromPoint(r.x+r.width/2,r.y+r.height/2)===b})})()") != "true") throw new InvalidOperationException("Web controls obstructed");
             await browser.ExecuteScriptAsync("document.getElementById('tongpin-widget-controls').shadowRoot.getElementById('collapse').click()");
             await Task.Delay(1000);
-            if (!collapsed || Visible || bubbleWindow.Width != (int)(54 * scale) || !bubbleWindow.Visible || Native.GetParent(bubbleWindow.Handle) != desktop) throw new InvalidOperationException("Collapse failed");
+            if (!collapsed || Visible || bubbleWindow.Width != (int)(54 * scale) || !bubbleWindow.Visible || Native.GetParent(bubbleWindow.Handle) != IntPtr.Zero) throw new InvalidOperationException("Collapse failed: width=" + bubbleWindow.Width + ", expected=" + (int)(54 * scale) + ", parent=" + Native.ClassName(Native.GetParent(bubbleWindow.Handle)));
             using (var bitmap = new Bitmap(bubble.Width, bubble.Height)) { bubble.DrawToBitmap(bitmap, bubble.ClientRectangle); bitmap.Save(Path.Combine(dataPath, "bubble.png")); }
             bubble.PerformClick();
             if (collapsed || !browser.Visible || Size != fullSize) throw new InvalidOperationException("Expand failed");
@@ -463,7 +432,7 @@ sealed class Widget : Form
             for (int i = 0; i < 40; i++) { await Task.Delay(500); if (await browser.ExecuteScriptAsync("!!document.querySelector('.desk-sync') && document.querySelector('.desk-sync').textContent.includes('已同步')") == "true") { restored = true; break; } }
             if (!restored) throw new InvalidOperationException("Repaint recovery failed");
             await CaptureHealthyPreview("recovered.png");
-            WriteStatus("verified:software-rendering,nonblack-preview,repaint-recovery,direct-drag,edge-resize,desktop-child,https-sync,collapse-expand,close");
+            WriteStatus("verified:software-rendering,nonblack-preview,repaint-recovery,direct-drag,edge-resize,independent-window,https-sync,collapse-expand,close");
             try { await browser.ExecuteScriptAsync("document.getElementById('tongpin-widget-controls').shadowRoot.getElementById('close').click()"); } catch { if (!closing) throw; }
             await Task.Delay(300);
             if (!closing) throw new InvalidOperationException("Close button failed");
@@ -495,7 +464,7 @@ sealed class Widget : Form
     void WriteStatus(string state)
     {
         try {
-            File.WriteAllText(Path.Combine(dataPath, verify ? "verification.json" : "status.json"), json.Serialize(new { state = state, renderMode = "software", pid = System.Diagnostics.Process.GetCurrentProcess().Id, attached = attached, collapsed = collapsed, visible = Visible, bubbleVisible = bubbleWindow.Visible, parentClass = Native.ClassName(Native.GetParent(Handle)), topmost = (Native.GetWindowLong(Handle, -20) & 8) != 0, width = Width, height = Height, timestamp = DateTimeOffset.Now.ToString("o") }));
+            File.WriteAllText(Path.Combine(dataPath, verify ? "verification.json" : "status.json"), json.Serialize(new { state = state, renderMode = "software", pid = System.Diagnostics.Process.GetCurrentProcess().Id, windowMode = "independent", collapsed = collapsed, visible = Visible, bubbleVisible = bubbleWindow.Visible, parentClass = Native.ClassName(Native.GetParent(Handle)), topmost = (Native.GetWindowLong(Handle, -20) & 8) != 0, width = Width, height = Height, timestamp = DateTimeOffset.Now.ToString("o") }));
         } catch { }
     }
 }
@@ -519,17 +488,8 @@ sealed class PetButton : Button
 
 static class Native
 {
-    [StructLayout(LayoutKind.Sequential)] public struct Point { public int X, Y; }
-    [StructLayout(LayoutKind.Sequential)] public struct Rect { public int Left, Top, Right, Bottom; }
-    [DllImport("user32.dll")] public static extern IntPtr GetShellWindow();
     [DllImport("user32.dll")] public static extern IntPtr GetParent(IntPtr window);
-    [DllImport("user32.dll", SetLastError = true)] public static extern IntPtr SetParent(IntPtr window, IntPtr parent);
-    [DllImport("user32.dll")] public static extern bool IsWindow(IntPtr window);
     [DllImport("user32.dll")] public static extern int GetWindowLong(IntPtr window, int index);
-    [DllImport("user32.dll")] public static extern int SetWindowLong(IntPtr window, int index, int value);
-    [DllImport("user32.dll")] public static extern bool ScreenToClient(IntPtr window, ref Point point);
-    [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr window, out Rect rectangle);
-    [DllImport("user32.dll")] public static extern bool SetWindowPos(IntPtr window, IntPtr after, int x, int y, int width, int height, uint flags);
     [DllImport("user32.dll", CharSet = CharSet.Unicode)] static extern int GetClassName(IntPtr window, StringBuilder name, int count);
     public static string ClassName(IntPtr window) { var name = new StringBuilder(256); GetClassName(window, name, name.Capacity); return name.ToString(); }
 }
