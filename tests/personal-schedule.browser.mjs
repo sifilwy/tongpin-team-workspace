@@ -526,7 +526,11 @@ try {
   const pendingEditor=planDialog.locator('.weekly-plan-pending-editor');
   assert.equal(await pendingEditor.getByRole('button',{name:'添加',exact:true}).isDisabled(),true);
   await pendingEditor.getByRole('textbox',{name:'待安排任务名称',exact:true}).fill('计划里新增的待办');
-  const addedCategory=await pendingEditor.getByRole('combobox').inputValue();
+  await planDialog.getByRole('button',{name:'皮球',exact:true}).click();
+  assert.equal(await pendingEditor.getByRole('textbox').inputValue(),'');
+  await planDialog.getByRole('button',{name:'独立',exact:true}).click();
+  assert.equal(await pendingEditor.getByRole('textbox').inputValue(),'计划里新增的待办');
+  const addedCategory='独立';
   await pendingEditor.getByRole('textbox').press('Enter');
   await planDialog.locator('.weekly-plan-pending').getByText('计划里新增的待办',{exact:true}).waitFor();
   const addedPending=await page.evaluate(()=>window.fixture['tongpin-personal-tasks-v3'].find(task=>task.title==='计划里新增的待办'));
@@ -543,6 +547,11 @@ try {
   await planDialog.locator('summary').click();
   await planDialog.getByRole('textbox',{name:'本周总结',exact:true}).fill('记录本周收获');
   await planDialog.getByRole('button',{name:'皮球',exact:true}).click();
+  assert.equal(await planDialog.locator('.weekly-plan-pending').getByText('计划里新增的待办',{exact:true}).count(),0);
+  await planDialog.getByRole('button',{name:'添加待安排任务',exact:true}).click();
+  await pendingEditor.getByRole('textbox').fill('皮球独有待安排');
+  await pendingEditor.getByRole('button',{name:'添加',exact:true}).click();
+  await planDialog.locator('.weekly-plan-pending').getByText('皮球独有待安排',{exact:true}).waitFor();
   assert.equal(await planDialog.getByRole('textbox',{name:'本周计划',exact:true}).inputValue(),'');
   await planDialog.getByRole('textbox',{name:'本周计划',exact:true}).fill('皮球本周安排');
   assert.equal(await planDialog.getByRole('textbox',{name:'周二计划',exact:true}).inputValue(),'');
@@ -551,6 +560,8 @@ try {
   await planDialog.getByRole('textbox',{name:'本周总结',exact:true}).fill('皮球的本周总结');
   await planDialog.getByRole('button',{name:'独立',exact:true}).click();
   assert.equal(await planDialog.getByRole('textbox',{name:'本周计划',exact:true}).inputValue(),'本周集中完成课程');
+  assert.equal(await planDialog.locator('.weekly-plan-pending').getByText('皮球独有待安排',{exact:true}).count(),0);
+  assert.equal(await planDialog.locator('.weekly-plan-pending').getByText('计划里新增的待办',{exact:true}).count(),1);
   assert.equal(await planDialog.getByRole('textbox',{name:'周二计划',exact:true}).inputValue(),'周二的草稿');
   assert.equal(await planDialog.getByRole('textbox',{name:'本周总结',exact:true}).inputValue(),'记录本周收获');
   await page.evaluate(()=>window.weekPlanConflict=true);
