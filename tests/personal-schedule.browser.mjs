@@ -584,4 +584,16 @@ try {
   await planDialog.getByRole('button',{name:'关闭计划',exact:true}).click();await planDialog.waitFor({state:'hidden'});
   assert.equal(await page.evaluate(week=>window.weekPlanDocs[`tongpin-week-plan-v1:xzx:${week}`].value.weekly,selectedWeek),'本周集中完成课程');
   console.log('PASS: plan toolbar placement, editable week/day/summary modal, close/reopen save, separate weeks and members, CAS merge, failed close preserves draft and retry');
+  await page.locator('.personal-segment').getByRole('button',{name:'xzx',exact:true}).click();
+  const addCategory=page.locator('[data-personal-category="蓝色学习"]>button').first();
+  if(await addCategory.getAttribute('aria-expanded')!=='true')await addCategory.click();
+  await page.getByRole('button',{name:'添加蓝色学习待安排任务',exact:true}).click();
+  assert.equal(await page.locator('select[name=owner]').inputValue(),'xzx');
+  assert.equal(await page.locator('select[name=category]').inputValue(),'蓝色学习');
+  assert.equal(await page.locator('input[name=due]').inputValue(),'');
+  await page.locator('input[name=title]').fill('正常日程左侧新增任务');
+  await page.locator('.personal-edit-modal .save').click();
+  const sidebarAdded=await page.evaluate(()=>window.fixture['tongpin-personal-tasks-v3'].find(task=>task.title==='正常日程左侧新增任务'));
+  assert.equal(sidebarAdded.owner,'xzx');assert.equal(sidebarAdded.category,'蓝色学习');assert.equal(sidebarAdded.due,null);
+  console.log('PASS: normal schedule pending add button defaults to the selected member/category and creates an unscheduled task');
 } finally { await browser.close(); }

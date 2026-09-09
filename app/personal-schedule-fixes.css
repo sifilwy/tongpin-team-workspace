@@ -60,6 +60,10 @@
 .personal-status-block.is-over{background:#f0edff;box-shadow:inset 0 0 0 1px #d8d1ff}
 .personal-status-block>header{display:flex;align-items:center;justify-content:space-between;padding:0 4px 5px;color:#8a8e9a;font-size:8px;font-weight:700}
 .personal-status-block>header b{min-width:19px;padding:1px 5px;border-radius:99px;background:#f1efeb;color:#9598a1;text-align:center;font-size:8px}
+.personal-pending-actions{display:flex;align-items:center;gap:6px}
+.personal-pending-actions>button{display:grid;place-items:center;width:24px;height:24px;padding:0;border:0;border-radius:7px;background:#eee8fa;color:#7862b0;font-size:17px;line-height:1;cursor:pointer}
+.personal-pending-actions>button:hover{background:#e2d7f5}
+.personal-pending-actions>button:focus-visible{outline:2px solid #a48abe;outline-offset:2px}
 .personal-status-block .personal-pending-list{gap:5px;padding:0}
 .personal-status-block .personal-pending-list>button{gap:3px;padding:9px 10px;border-color:#ece8e1;border-radius:8px;box-shadow:none}
 .personal-status-block .personal-pending-list>button:hover{border-color:#d9d2ff;background:#faf9ff}
