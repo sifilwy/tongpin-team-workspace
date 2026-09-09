@@ -1,4 +1,4 @@
-.weekly-plan-dialog{margin:auto;padding:0;width:min(740px,calc(100vw - 32px));max-height:calc(100dvh - 40px);border:1px solid #e2daec;border-radius:18px;background:#fff;color:#3d3548;box-shadow:0 24px 90px #24173533;overflow:hidden}
+.weekly-plan-dialog{margin:auto;padding:0;width:min(980px,calc(100vw - 32px));max-height:calc(100dvh - 40px);border:1px solid #e2daec;border-radius:18px;background:#fff;color:#3d3548;box-shadow:0 24px 90px #24173533;overflow:hidden}
 .weekly-plan-dialog::backdrop{background:#28213770}
 .weekly-plan-dialog form{display:flex;flex-direction:column;max-height:calc(100dvh - 42px)}
 .weekly-plan-dialog header{display:flex;align-items:center;justify-content:space-between;padding:22px 26px 18px;border-bottom:1px solid #ebe5f0;background:#fff}
@@ -6,6 +6,18 @@
 .weekly-plan-dialog h2{margin:0 0 6px;font-size:20px;font-weight:600}
 .weekly-plan-dialog header>button{border:0;background:transparent;color:#92829d;font-size:28px;cursor:pointer}
 .weekly-plan-body{overflow-y:auto;padding:20px 26px;min-height:0}
+.weekly-plan-dialog form>header,.weekly-plan-dialog form>footer{flex-shrink:0}
+.weekly-plan-content{display:grid;grid-template-columns:210px minmax(0,1fr);min-height:0;overflow:hidden}
+.weekly-plan-pending{padding:22px 18px;background:#faf8fc;border-right:1px solid #eee8f3;overflow-y:auto;min-height:0}
+.weekly-plan-pending-heading{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:16px}
+.weekly-plan-pending-heading h3{margin:0;font-size:14px;font-weight:600}
+.weekly-plan-pending-heading>span{font-size:11px;color:#8b709d;background:#eee7f6;border-radius:12px;padding:2px 8px}
+.weekly-plan-pending ul{list-style:none;margin:0;padding:0}
+.weekly-plan-pending li{padding:12px 0;border-bottom:1px solid #ece6f1;overflow-wrap:anywhere}
+.weekly-plan-pending li:first-child{padding-top:0}
+.weekly-plan-pending strong{display:block;font-size:13px;font-weight:500;line-height:1.65}
+.weekly-plan-pending small{display:block;margin-top:6px;color:#a08eac;font-size:11px}
+.weekly-plan-pending p{font-size:12px;color:#a396ad;line-height:1.7}
 .weekly-plan-dialog fieldset{margin:0;padding:0;border:0;min-width:0}
 .weekly-plan-dialog textarea{display:block;width:100%;box-sizing:border-box;resize:vertical;min-height:82px;margin-top:10px;padding:12px;border:1px solid #e3dcec;border-radius:10px;background:#fff;color:#4a4055;font-family:inherit;font-size:13px;font-weight:400;line-height:1.7;outline:none}
 .weekly-plan-dialog textarea:focus{border-color:#a48abe;box-shadow:0 0 0 3px #a48abe15}
@@ -36,3 +48,4 @@
 .weekly-plan-error button{margin-left:8px;border:0;background:transparent;text-decoration:underline;color:inherit;cursor:pointer}
 .personal-top-actions .personal-plan-button{border-color:#dacde5;background:#f7f1fb;color:#8a6b9a}
 @media(max-width:600px){.weekly-plan-dialog header,.weekly-plan-dialog footer{padding:14px 16px}.weekly-plan-body{padding:16px}.weekly-plan-dialog footer button{padding:8px 14px}.weekly-plan-tabs{gap:2px}.weekly-plan-tabs button{font-size:12px}}
+@media(max-width:700px){.weekly-plan-content{display:block;overflow-y:auto}.weekly-plan-pending{max-height:170px;padding:16px;border-right:0;border-bottom:1px solid #eee8f3}.weekly-plan-pending-heading{margin-bottom:10px}.weekly-plan-body{overflow:visible}}

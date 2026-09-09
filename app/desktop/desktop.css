@@ -1,4 +1,14 @@
 body:has(.desktop-agenda){margin:0;background:#f3f5fa!important}body:has(.desktop-agenda) .team-identity{display:none}
+.desktop-agenda .desk-pending{margin-top:16px;padding:14px;border:1px solid #e5d5b4;border-left:4px solid #c99c52;border-radius:12px;background:#fffbf3;color:#735a35}
+.desktop-agenda .desk-pending summary{font-size:15px;font-weight:600;align-items:center;gap:8px}
+.desktop-agenda .desk-pending summary span{color:#947443;background:#f2e6cf;border-radius:10px;padding:2px 8px;font-size:12px}
+.desktop-agenda .desk-pending .desk-events{margin-top:14px;max-height:230px;overflow-y:auto}
+.desktop-agenda .desk-pending .desk-events li{grid-template-columns:28px minmax(0,1fr);min-height:0;margin-top:10px}
+.desktop-agenda .desk-pending .desk-event-time,.desktop-agenda .desk-pending .desk-events li:after{display:none}
+.desktop-agenda .desk-pending .desk-event-body{padding-bottom:10px}
+.desktop-agenda .desk-pending .desk-event-body h3{font-size:14px}
+.desktop-agenda .desk-pending .desk-event-body>span{font-size:11px}
+.desktop-agenda .desk-pending .desk-pending-empty{font-size:12px;color:#a48d69;padding-top:12px}
 .desktop-agenda{box-sizing:border-box;max-width:580px;min-height:100vh;margin:auto;padding:16px 18px 22px;font-family:"Segoe UI","Microsoft YaHei",sans-serif;color:#202c45;background:radial-gradient(ellipse at 100% 0%,#e5edff,transparent 48%),#f7f8fc;font-size:16px;line-height:1.5}
 .desktop-agenda *{box-sizing:border-box}.desktop-agenda button,.desktop-agenda a{-webkit-tap-highlight-color:transparent}.desktop-agenda button{font:inherit;cursor:pointer}.desktop-agenda button:focus-visible,.desktop-agenda a:focus-visible,.desktop-agenda summary:focus-visible{outline:3px solid #89aaff;outline-offset:3px}.desktop-agenda h1,.desktop-agenda h2,.desktop-agenda h3,.desktop-agenda p{margin:0}
 

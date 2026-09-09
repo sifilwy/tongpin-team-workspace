@@ -6,7 +6,7 @@ import "../weekly-plan.css";
 type Plan = {weekly:string;ballWeekly?:string;summary:string;days:Record<string,string>};
 type Document = {revision:number;value:Plan};
 const weekdays=['周一','周二','周三','周四','周五','周六','周日'];
-export default function WeeklyPlanDialog({ owner, week, onClose }: {owner:string;week:string;onClose:()=>void}) {
+export default function WeeklyPlanDialog({ owner, week, pending=[], onClose }: {owner:string;week:string;pending?:{id:number;title:string;category:string}[];onClose:()=>void}) {
   const key=weekPlanKey(owner,week);
   const dates=weekPlanDates(week);
   const [base,setBase]=useState<Plan>(()=>emptyWeekPlan(week));
@@ -68,6 +68,11 @@ export default function WeeklyPlanDialog({ owner, week, onClose }: {owner:string
   return <dialog ref={dialog} className="weekly-plan-dialog" aria-label="每周计划" onCancel={event=>{event.preventDefault();void save(true);}}>
     <form onSubmit={event=>{event.preventDefault();void save();}}>
       <header><div><h2>每周计划</h2><span>{owner} · {week} — {dates[6]}</span></div><button type="button" aria-label="关闭计划" disabled={busy} onClick={()=>void save(true)}>×</button></header>
+      <div className="weekly-plan-content">
+      <aside className="weekly-plan-pending" aria-label="待安排">
+        <div className="weekly-plan-pending-heading"><h3>待安排</h3><span>{pending.length}</span></div>
+        {pending.length ? <ul>{pending.map(task=><li key={task.id}><strong>{task.title}</strong><small>{task.category}</small></li>)}</ul> : <p>暂无待安排任务</p>}
+      </aside>
       <div className="weekly-plan-body">
         {error && <div className="weekly-plan-error" role="alert">{error}{!ready && <button type="button" onClick={()=>setRetry(value=>value+1)}>重新读取</button>}</div>}
         {!ready && !error && <p role="status">正在读取本周计划…</p>}
@@ -87,6 +92,7 @@ export default function WeeklyPlanDialog({ owner, week, onClose }: {owner:string
           </div>
           <details className="weekly-plan-summary"><summary>本周总结<span>{draft.summary.trim()?'已填写':'展开'}</span></summary><textarea aria-label="本周总结" rows={3} maxLength={10000} value={draft.summary} onChange={event=>setDraft({...draft,summary:event.target.value})} placeholder="记录本周的收获和改进…" /></details>
         </fieldset>
+      </div>
       </div>
       <footer><span role="status">{busy?'正在保存…':dirty?'关闭时保存':notice || '按周保存'}</span><button type="submit" disabled={!ready || busy || !dirty}>{busy?'保存中…':'保存'}</button><button type="button" disabled={busy} onClick={()=>void save(true)}>关闭</button></footer>
     </form>
