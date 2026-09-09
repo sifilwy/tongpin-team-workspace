@@ -1,4 +1,4 @@
-export type View = "overview" | "timeline" | "review" | "personal";
+export type View = "overview" | "timeline" | "review" | "personal" | "personality";
 export type Status = "待完成" | "进行中" | "已完成";
 export type Category = "运营" | "销售" | "交付";
 export type Review = { id: number; author: string; text: string; createdAt: string };

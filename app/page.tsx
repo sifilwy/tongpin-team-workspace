@@ -10,6 +10,7 @@ import { taskTotal } from "./lib/task-amount.mjs";
 import PersonalSchedule from "./components/PersonalSchedule";
 import ScheduleBoundary from "./components/ScheduleBoundary";
 import DesktopWidgetButton from "./components/DesktopWidgetButton";
+import PersonalityPage from "./components/PersonalityPage";
 
 import TaskReviewDialog from "./components/TaskReviewDialog";
 import { categories, members, NOTION_COLLAB_URL, Category, Message, Status, Task, TaskNote, View } from "./lib/model";
@@ -237,6 +238,7 @@ export default function Page() {
   }
 
   function navigate(next: View) {
+    if (next === "personality" && member !== "xzx") return;
     setView(next);
     if (next === "overview") { setShowCompleted(false); setCompletedTaskId(null); }
   }
@@ -267,8 +269,8 @@ export default function Page() {
   return <main className="app-shell">
     <nav className="main-nav">
       <button className="brand" onClick={() => navigate("overview")}><span>同</span><strong>同频工作台</strong></button>
-      <div className="nav-links">{([["overview", "协作总览"], ["timeline", "任务时间线"], ["review", "总结复盘"], ["personal", "个人日程"]] as [View, string][]).map(([id, label]) => <button key={id} className={view === id ? "active" : ""} onClick={() => navigate(id)}>{label}</button>)}</div>
-      {view !== "personal" && <button className="create-button" onClick={() => setShowNew(true)}>＋ 新建任务</button>}
+      <div className="nav-links">{([["overview", "协作总览"], ["timeline", "任务时间线"], ["review", "总结复盘"], ["personal", "个人日程"], ...(member === "xzx" ? [["personality", "人格改变"]] : [])] as [View, string][]).map(([id, label]) => <button key={id} className={view === id ? "active" : ""} onClick={() => navigate(id)}>{label}</button>)}</div>
+      {view !== "personal" && view !== "personality" && <button className="create-button" onClick={() => setShowNew(true)}>＋ 新建任务</button>}
       {view === "personal" && <DesktopWidgetButton />}
     </nav>
 
@@ -341,6 +343,7 @@ export default function Page() {
     }}><div className="modal-title"><div><strong>确认实际产出</strong><span>{completion.patch.title || task.title}</span></div><button type="button" aria-label="关闭产出确认" onClick={() => setCompletion(null)}>×</button></div><BillingFields amount={completion.patch.amount ?? task.amount} requireQuantity /><button className="modal-submit">确认次数并完成</button><button type="button" onClick={() => { updateTask(completion.id, { ...completion.patch, quantity: null }, true); setCompletion(null); }}>先标完成，次数待确认</button></form></div>; })()}
     {reviewTask && <TaskReviewDialog task={reviewTask} onClose={() => setReviewTask(null)} />}
     {view === "personal" && <ScheduleBoundary><PersonalSchedule /></ScheduleBoundary>}
+    {member === "xzx" && <PersonalityPage active={view === "personality"} />}
 
     {taskMenu && tasks.find((task) => task.id === taskMenu.taskId) && (() => { const task = tasks.find((item) => item.id === taskMenu.taskId)!; return <div className="task-context-menu" role="menu" style={{ left: taskMenu.x, top: taskMenu.y }} onPointerDown={(event) => event.stopPropagation()} onContextMenu={(event) => event.preventDefault()}><div><strong>{task.title}</strong><span>{task.owner} · {task.category}</span></div>{task.status !== "已完成" && <button onClick={() => completeTask(task.id)}><b>✓</b><span>标记完成<small>进入总览的已完成任务</small></span></button>}<button onClick={() => setEditTaskId(task.id)}><b>✎</b><span>编辑任务<small>负责人、日期与分类</small></span></button>{task.status !== "已完成" && task.owner !== "待分配" && <button className="menu-secondary" onClick={() => moveTask(task.id, "待分配")}><b>↩</b><span>退回待安排<small>取消当前负责人</small></span></button>}<button className="menu-danger" onClick={() => deleteTask(task.id)}><b>×</b><span>删除任务<small>删除后无法恢复</small></span></button></div>; })()}
     {showNew && <div className="modal-layer"><form className="task-modal" onSubmit={createTask}><div className="modal-title"><div><strong>新建任务</strong><span>创建后进入待安排，也可以直接指定负责人</span></div><button type="button" onClick={() => setShowNew(false)}>×</button></div><label>任务名称<input name="title" autoFocus required placeholder="输入一件需要协作的事" /></label><div className="form-row"><label>负责人<select name="owner" defaultValue={member}><option>待分配</option>{members.map(member => <option key={member.name}>{member.name}</option>)}</select></label><label>任务分类<select name="category">{categories.map(category => <option key={category}>{category}</option>)}</select></label></div><AssistantPicker /><div className="form-row"><label>计划日期<input name="due" type="date" defaultValue={iso(new Date())} required /></label></div><BillingFields /><label>补充说明<textarea name="description" placeholder="说明结果、配合方式或注意事项" /></label><label>Notion 任务笔记<input name="notionUrl" type="url" placeholder="粘贴团队共享的 Notion 页面链接" /></label><button className="modal-submit">创建任务</button></form></div>}

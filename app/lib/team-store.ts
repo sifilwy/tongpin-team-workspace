@@ -2,6 +2,7 @@ import { mkdirSync, existsSync, readFileSync, writeFileSync, renameSync } from "
 import { join } from "node:path";
 import { randomBytes, createHash } from "node:crypto";
 import { personalPalette } from "./personal-colors.mjs";
+import { PERSONALITY_KEY, validPersonality } from "./personality-data.mjs";
 
 const names = ["xzx", "吃吃", "czl", "子涵", "悦悦"];
 const dir = process.env.TONGPIN_DATA_DIR || join(process.cwd(), ".team-data");
@@ -24,6 +25,7 @@ function save(state: Store) {
 }
 const allowed = new Set(["tongpin-tasks-v8", "tongpin-messages-v8", "tongpin-personal-tasks-v3", "tongpin-personal-categories-v2", "tongpin-personal-category-colors-v1", "tongpin-review-notes-v1"]);
 const attempts = new Map<string, { count: number; until: number }>();
+allowed.add(PERSONALITY_KEY);
 export async function handleTeam(request: Request) {
   const publicOrigin = new URL(process.env.TONGPIN_PUBLIC_ORIGIN || request.url).origin;
   const secureCookie = new URL(publicOrigin).protocol === "https:";
@@ -32,10 +34,12 @@ export async function handleTeam(request: Request) {
   let state = read();
   const token = request.headers.get("cookie")?.match(/(?:^|;\s*)tongpin_session=([^;]+)/)?.[1] || "";
   const session = state.sessions[hash(token)];
-  const member = session && session.expires > Date.now() ? session.name : null;
+  let member = session && session.expires > Date.now() ? session.name : null;
   if (request.method === "GET") {
     if (!member) return reply({ error: "请使用邀请码进入" }, 401);
     const key = new URL(request.url).searchParams.get("key");
+    if (key === PERSONALITY_KEY && member !== "xzx") return reply({ error: "无权访问此内容" }, 403);
+    if (key && !allowed.has(key)) return reply({ error: "未知数据类型" }, 400);
     return reply(key ? { member, document: state.documents[key] || null } : { member });
   }
   const raw = await request.text();
@@ -44,6 +48,8 @@ export async function handleTeam(request: Request) {
   try { body = JSON.parse(raw); } catch { return reply({ error: "内容格式错误" }, 400); }
   if (!body || typeof body !== "object") return reply({ error: "内容格式错误" }, 400);
   state = read();
+  const currentSession = state.sessions[hash(token)];
+  member = currentSession && currentSession.expires > Date.now() ? currentSession.name : null;
   if (body.action === "login") {
     const bucket = "login";
     const attempt = attempts.get(bucket) || { count: 0, until: Date.now() + 60000 };
@@ -60,10 +66,13 @@ export async function handleTeam(request: Request) {
   if (!member) return reply({ error: "登录已过期，请重新进入" }, 401);
   if (body.action === "logout") { delete state.sessions[hash(token)]; save(state); return reply({}, 200, { "Set-Cookie": `tongpin_session=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0${secureCookie ? "; Secure" : ""}` }); }
   if (!allowed.has(body.key)) return reply({ error: "未知数据类型" }, 400);
+  if (body.key === PERSONALITY_KEY && member !== "xzx") return reply({ error: "无权访问此内容" }, 403);
   const previous = state.documents[body.key];
   if ((previous?.revision || 0) !== body.revision) return reply({ error: "另一位成员已更新，请刷新后重试", document: previous }, 409);
   const isColors = body.key === "tongpin-personal-category-colors-v1";
-  if (body.key.endsWith("categories-v2") || isColors ? !body.value || Array.isArray(body.value) || typeof body.value !== "object" : !Array.isArray(body.value)) return reply({ error: "数据格式不正确" }, 400);
+  const isPersonality = body.key === PERSONALITY_KEY;
+  if (isPersonality && !validPersonality(body.value)) return reply({ error: "请填写有效内容（每项最多一万字，最多 1000 条记录）" }, 400);
+  if (body.key.endsWith("categories-v2") || isColors || isPersonality ? !body.value || Array.isArray(body.value) || typeof body.value !== "object" : !Array.isArray(body.value)) return reply({ error: "数据格式不正确" }, 400);
   if (isColors && Object.entries(body.value).some(([owner, colors]) => !names.includes(owner) || !colors || Array.isArray(colors) || typeof colors !== "object" || Object.values(colors).some(color => !personalPalette.some(item => item.id === color)))) return reply({ error: "分类配色无效" }, 400);
   if (Array.isArray(body.value)) {
     if (body.value.some((item: any) => !item || typeof item !== "object" || !Number.isFinite(item.id))) return reply({ error: "任务格式不正确" }, 400);
