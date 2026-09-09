@@ -58,6 +58,8 @@ sealed class Widget : Form
     string gesture = "";
     IntPtr desktop;
     Rectangle desired;
+    string renderHealth = "starting";
+    bool probing;
     readonly JavaScriptSerializer json = new JavaScriptSerializer();
 
     public Widget(bool verification, string code)
@@ -134,10 +136,10 @@ sealed class Widget : Form
         tray.Visible = true;
         tray.DoubleClick += delegate { if (collapsed) Expand(); else if (attached) Detach(); else Activate(); };
         recovery.Interval = 5000;
-        recovery.Tick += delegate {
+        recovery.Tick += async delegate {
             if (attached && (!Native.IsWindow(desktop) || Native.GetParent(Handle) != desktop)) { if (collapsed) Expand(); Attach(false); }
             if (collapsed && Native.GetParent(bubbleWindow.Handle) != desktop) AttachBubble();
-            if (!verify && !closing) WriteStatus(collapsed ? "collapsed" : "running");
+            if (!verify && !closing) { await ProbeRenderer(); WriteStatus(collapsed ? "collapsed" : renderHealth); }
         };
         Shown += async delegate { Attach(false); recovery.Start(); await InitializeBrowser(); };
         FormClosing += delegate(object sender, FormClosingEventArgs e) { closing = true; recovery.Stop(); if (!verify) { SavePosition(); WriteStatus("closed:" + e.CloseReason); } tray.Visible = false; };
@@ -145,7 +147,8 @@ sealed class Widget : Form
         Resize += delegate { LayoutSurface(); RoundCorners(); };
         LayoutSurface();
         Microsoft.Win32.SystemEvents.DisplaySettingsChanged += DisplayChanged;
-        FormClosed += delegate { Microsoft.Win32.SystemEvents.DisplaySettingsChanged -= DisplayChanged; };
+        Microsoft.Win32.SystemEvents.PowerModeChanged += PowerChanged;
+        FormClosed += delegate { Microsoft.Win32.SystemEvents.DisplaySettingsChanged -= DisplayChanged; Microsoft.Win32.SystemEvents.PowerModeChanged -= PowerChanged; };
     }
 
     void LayoutSurface()
@@ -206,7 +209,29 @@ sealed class Widget : Form
 
     void DisplayChanged(object sender, EventArgs e)
     {
-        if (!closing && IsHandleCreated) BeginInvoke(new Action(delegate { ClampPosition(); if (collapsed) AttachBubble(); else if (attached) Attach(false); }));
+        if (!closing && IsHandleCreated) BeginInvoke(new Action(delegate { ClampPosition(); if (collapsed) AttachBubble(); else if (attached) Attach(false); RestoreRendering(); }));
+    }
+    void PowerChanged(object sender, Microsoft.Win32.PowerModeChangedEventArgs e)
+    {
+        if (e.Mode == Microsoft.Win32.PowerModes.Resume && !closing && IsHandleCreated) BeginInvoke(new Action(RestoreRendering));
+    }
+    void RestoreRendering()
+    {
+        if (closing || browser.CoreWebView2 == null) return;
+        try { browser.Visible = false; LayoutSurface(); browser.Visible = true; browser.Reload(); renderHealth = "reloading"; }
+        catch { renderHealth = "renderer-unavailable"; }
+    }
+    async Task ProbeRenderer()
+    {
+        if (probing || browser.CoreWebView2 == null) return;
+        probing = true;
+        try {
+            var probe = browser.ExecuteScriptAsync("JSON.stringify({toolbar:!!document.getElementById('tongpin-widget-controls'),sync:document.querySelector('.desk-sync')?.textContent||'',login:!!document.getElementById('invite-code')})");
+            if (await Task.WhenAny(probe, Task.Delay(2500)) != probe) { renderHealth = "renderer-unresponsive"; return; }
+            string result = await probe;
+            renderHealth = result.Contains("已同步") ? "page-synced" : result.Contains("未连接") ? "page-offline" : "page-loaded";
+        } catch { renderHealth = "renderer-unavailable"; }
+        finally { probing = false; }
     }
     void ClampPosition()
     {
@@ -312,7 +337,10 @@ sealed class Widget : Form
     {
         try
         {
-            var environment = await CoreWebView2Environment.CreateAsync(null, Path.Combine(dataPath, "WebView2"));
+            // Software rendering is a scoped workaround for this desktop child's
+            // repeatedly black GPU-composited surface, not an OS/browser setting.
+            var options = new CoreWebView2EnvironmentOptions { AdditionalBrowserArguments = "--disable-gpu" };
+            var environment = await CoreWebView2Environment.CreateAsync(null, Path.Combine(dataPath, "WebView2"), options);
             await browser.EnsureCoreWebView2Async(environment);
             var core = browser.CoreWebView2;
             core.Settings.AreDefaultContextMenusEnabled = false;
@@ -323,7 +351,7 @@ sealed class Widget : Form
             core.PermissionRequested += delegate(object sender, CoreWebView2PermissionRequestedEventArgs e) { e.State = CoreWebView2PermissionState.Deny; };
             core.NewWindowRequested += delegate(object sender, CoreWebView2NewWindowRequestedEventArgs e) { e.Handled = true; /* Workspace editing is available in the user's normal browser. */ };
             core.NavigationStarting += delegate(object sender, CoreWebView2NavigationStartingEventArgs e) { Uri uri; if (!Uri.TryCreate(e.Uri, UriKind.Absolute, out uri) || uri.Scheme != "https" || uri.Host != "yanxue-sync.top") e.Cancel = true; };
-            core.ProcessFailed += delegate { status.Text = "页面已停止 · 菜单可刷新"; WriteStatus("renderer-failed"); };
+            core.ProcessFailed += delegate(object sender, CoreWebView2ProcessFailedEventArgs e) { renderHealth = "renderer-failed:" + e.ProcessFailedKind; status.Text = "页面已停止 · 菜单可刷新"; WriteStatus(renderHealth); if (e.ProcessFailedKind == CoreWebView2ProcessFailedKind.RenderProcessExited) BeginInvoke(new Action(RestoreRendering)); };
             core.WebMessageReceived += delegate(object sender, CoreWebView2WebMessageReceivedEventArgs e) {
                 Uri source;
                 if (!Uri.TryCreate(e.Source, UriKind.Absolute, out source) || source.GetLeftPart(UriPartial.Authority) != Origin || source.AbsolutePath != "/desktop") return;
@@ -333,7 +361,7 @@ sealed class Widget : Form
                 else if (command.StartsWith("gesture-")) HandleGesture(command);
                 else if (command == "collapse") Collapse();
                 else if (command == "close") BeginInvoke(new Action(Close));
-                else if (command == "refresh") browser.Reload();
+                else if (command == "refresh") RestoreRendering();
                 else if (command == "move") { if (collapsed) Expand(); if (attached) Detach(); else Attach(true); core.PostWebMessageAsString(attached ? "attached" : "detached"); }
                 else if (command == "reset") { if (collapsed) Expand(); if (!attached) Attach(false); var area = Screen.PrimaryScreen.WorkingArea; desired = new Rectangle(area.Right - Width - 22, area.Top + 24, Width, Math.Min(Height, area.Height - 48)); Attach(true); }
             };
@@ -414,7 +442,7 @@ sealed class Widget : Form
             await browser.ExecuteScriptAsync("document.querySelector('.desk-today').click()");
             await Task.Delay(16000);
             if (before == await browser.ExecuteScriptAsync("document.querySelector('.desk-sync').title")) throw new InvalidOperationException("Refresh failed");
-            using (var file = File.Create(Path.Combine(dataPath, "preview.png"))) await browser.CoreWebView2.CapturePreviewAsync(CoreWebView2CapturePreviewImageFormat.Png, file);
+            await CaptureHealthyPreview("preview.png");
             Detach();
             if (Native.GetParent(Handle) != IntPtr.Zero) throw new InvalidOperationException("Detach failed");
             Attach(false);
@@ -430,13 +458,31 @@ sealed class Widget : Form
             if (collapsed || !browser.Visible || Size != fullSize) throw new InvalidOperationException("Expand failed");
             await browser.ExecuteScriptAsync("document.getElementById('tongpin-widget-controls').shadowRoot.getElementById('collapse').click()");
             await Task.Delay(300); bubble.PerformClick();
-            WriteStatus("verified:direct-drag,edge-resize,escape-cancel,desktop-child,https-sync,auto-refresh,web-toolbar,collapse-expand,close");
+            RestoreRendering();
+            bool restored = false;
+            for (int i = 0; i < 40; i++) { await Task.Delay(500); if (await browser.ExecuteScriptAsync("!!document.querySelector('.desk-sync') && document.querySelector('.desk-sync').textContent.includes('已同步')") == "true") { restored = true; break; } }
+            if (!restored) throw new InvalidOperationException("Repaint recovery failed");
+            await CaptureHealthyPreview("recovered.png");
+            WriteStatus("verified:software-rendering,nonblack-preview,repaint-recovery,direct-drag,edge-resize,desktop-child,https-sync,collapse-expand,close");
             try { await browser.ExecuteScriptAsync("document.getElementById('tongpin-widget-controls').shadowRoot.getElementById('close').click()"); } catch { if (!closing) throw; }
             await Task.Delay(300);
             if (!closing) throw new InvalidOperationException("Close button failed");
         }
         catch (Exception e) { WriteStatus("verification-failed:" + e.GetType().Name + ":" + e.Message); Environment.ExitCode = 1; }
         finally { if (!closing) Close(); }
+    }
+    async Task CaptureHealthyPreview(string name)
+    {
+        using (var data = new MemoryStream()) {
+            await browser.CoreWebView2.CapturePreviewAsync(CoreWebView2CapturePreviewImageFormat.Png, data);
+            data.Position = 0;
+            using (var bitmap = new Bitmap(data)) {
+                int dark = 0, count = 0;
+                for (int y = 5; y < bitmap.Height; y += 25) for (int x = 5; x < bitmap.Width; x += 25) { var color = bitmap.GetPixel(x, y); if (color.R < 15 && color.G < 15 && color.B < 15) dark++; count++; }
+                if (count == 0 || dark > count * .8) throw new InvalidOperationException("Captured page is black");
+                bitmap.Save(Path.Combine(dataPath, name));
+            }
+        }
     }
     async Task VerifyPointerGesture(string selector, int dx, int dy, bool cancel)
     {
@@ -449,7 +495,7 @@ sealed class Widget : Form
     void WriteStatus(string state)
     {
         try {
-            File.WriteAllText(Path.Combine(dataPath, verify ? "verification.json" : "status.json"), json.Serialize(new { state = state, pid = System.Diagnostics.Process.GetCurrentProcess().Id, attached = attached, collapsed = collapsed, visible = Visible, bubbleVisible = bubbleWindow.Visible, parentClass = Native.ClassName(Native.GetParent(Handle)), topmost = (Native.GetWindowLong(Handle, -20) & 8) != 0, width = Width, height = Height, timestamp = DateTimeOffset.Now.ToString("o") }));
+            File.WriteAllText(Path.Combine(dataPath, verify ? "verification.json" : "status.json"), json.Serialize(new { state = state, renderMode = "software", pid = System.Diagnostics.Process.GetCurrentProcess().Id, attached = attached, collapsed = collapsed, visible = Visible, bubbleVisible = bubbleWindow.Visible, parentClass = Native.ClassName(Native.GetParent(Handle)), topmost = (Native.GetWindowLong(Handle, -20) & 8) != 0, width = Width, height = Height, timestamp = DateTimeOffset.Now.ToString("o") }));
         } catch { }
     }
 }
