@@ -18,17 +18,22 @@ static class Program
     [STAThread]
     static void Main(string[] args)
     {
+        if (args.Length > 0 && args[0] == "--open-from-web") {
+            if (args.Length != 2 || (!string.Equals(args[1], "tongpin-widget://open", StringComparison.OrdinalIgnoreCase) && !string.Equals(args[1], "tongpin-widget://open/", StringComparison.OrdinalIgnoreCase))) return;
+            args = new string[0];
+        }
         bool verify = Array.IndexOf(args, "--verify") >= 0;
         bool fresh;
         using (var mutex = new Mutex(true, "Local\\TongpinWidget" + (verify ? "Verification" : ""), out fresh))
         using (var reveal = new EventWaitHandle(false, EventResetMode.AutoReset, "Local\\TongpinWidgetReveal" + (verify ? "Verification" : "")))
+        using (var exitForUpdate = new EventWaitHandle(false, EventResetMode.AutoReset, "Local\\TongpinWidgetExitForUpdate" + (verify ? "Verification" : "")))
         {
             if (!fresh) { reveal.Set(); return; }
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
             ServicePointManager.SecurityProtocol = SecurityProtocolType.Tls12;
             string code = Array.IndexOf(args, "--signin-stdin") >= 0 ? Console.In.ReadLine() : null;
-            Application.Run(new Widget(verify, code, reveal));
+            Application.Run(new Widget(verify, code, reveal, exitForUpdate));
         }
     }
 }
@@ -63,7 +68,7 @@ sealed class Widget : Form
     bool probing;
     readonly JavaScriptSerializer json = new JavaScriptSerializer();
 
-    public Widget(bool verification, string code, EventWaitHandle reveal)
+    public Widget(bool verification, string code, EventWaitHandle reveal, EventWaitHandle exitForUpdate)
     {
         verify = verification; signInCode = code;
         dataPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), verify ? "TongpinWidgetVerification" : "TongpinWidget");
@@ -136,7 +141,7 @@ sealed class Widget : Form
         tray.Visible = true;
         tray.DoubleClick += delegate { Reveal(); };
         activation.Interval = 300;
-        activation.Tick += delegate { if (!closing && reveal.WaitOne(0)) Reveal(); };
+        activation.Tick += delegate { if (!closing && exitForUpdate.WaitOne(0)) { Close(); return; } if (!closing && reveal.WaitOne(0)) Reveal(); };
         activation.Start();
         recovery.Interval = 5000;
         recovery.Tick += async delegate {
