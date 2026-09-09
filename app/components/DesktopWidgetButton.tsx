@@ -8,8 +8,8 @@ export default function DesktopWidgetButton() {
   const [opening, setOpening] = useState(false);
   useEffect(() => { setSupported(/Windows/i.test(navigator.userAgent)); }, []);
   return <>
-    <button type="button" className="desktop-install-button" onClick={() => { setOpening(false); dialog.current?.showModal(); }}>
-      <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true"><rect x="3" y="4" width="18" height="13" rx="2"/><path d="M8 21h8M12 17v4M9 10h6m-3-3v6"/></svg>添加桌面组件
+    <button type="button" className="desktop-install-button" aria-label="添加桌面组件" title="添加桌面组件" onClick={() => { setOpening(false); dialog.current?.showModal(); }}>
+      <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true"><rect x="3" y="4" width="18" height="13" rx="2"/><path d="M8 21h8M12 17v4M9 10h6m-3-3v6"/></svg><span>添加桌面组件</span>
     </button>
     <dialog ref={dialog} className="desktop-install-dialog" aria-labelledby="desktop-install-title" onClick={event => { if (event.target === event.currentTarget) { const rect=event.currentTarget.getBoundingClientRect(); if(event.clientX<rect.left || event.clientX>rect.right || event.clientY<rect.top || event.clientY>rect.bottom) dialog.current?.close(); } }}>
       <button type="button" className="desktop-install-close" aria-label="关闭安装说明" onClick={() => dialog.current?.close()}>×</button>
