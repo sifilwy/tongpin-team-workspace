@@ -8,7 +8,7 @@ export const changedTaskFields = (task, patch) => Object.fromEntries(Object.entr
 export const laterOccurrence = (task, anchor) => Boolean(anchor.seriesId && task.seriesId === anchor.seriesId && (task.repeatDate || task.due || '') > (anchor.repeatDate || anchor.due || '') && !task.done);
 
 /** Apply only changed schedule fields to future unfinished occurrences.
- * Notes and completion always belong to the selected occurrence; date changes
+ * Notes are shared by the entire series, independently of schedule scope. Date changes
  * shift each future date by the same offset instead of collapsing onto one day.
  */
 export function applyRepeatEdit(tasks, id, patch, scope) {
@@ -26,10 +26,11 @@ export function applyRepeatEdit(tasks, id, patch, scope) {
     ...(task.repeatDays?.length ? {repeatDays:task.repeatDays.map(day=>(day+shift%7+7)%7)} : {}),
   } : {};
   return tasks.map(task=>{
+    const note = anchor.seriesId && task.seriesId === anchor.seriesId && Object.hasOwn(patch,'note') ? {note:patch.note} : {};
     if(task.id===id) return {...task,...patch,...(scope==='following' ? dates(task) : {})};
-    if(scope!=='following' || !laterOccurrence(task,anchor)) return task;
+    if(scope!=='following' || !laterOccurrence(task,anchor)) return Object.keys(note).length ? {...task,...note} : task;
     const next = {...shared};
     if(Object.hasOwn(shared,'due')) next.due = shared.due === null ? null : task.due || task.repeatDate ? shiftDate(task.due || task.repeatDate,shift) : null;
-    return {...task,...next,...dates(task)};
+    return {...task,...next,...dates(task),...note};
   });
 }

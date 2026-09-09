@@ -36,7 +36,7 @@ export default function PersonalRepeatFields({ due }: { due: string }) {
       <div className="personal-repeat-shortcuts"><button type="button" onClick={()=>setDraftDays([0,1,2,3,4,5,6])}>每天</button><button type="button" onClick={()=>setDraftDays([1,2,3,4,5])}>工作日</button><button type="button" onClick={()=>setDraftDays([])}>清空</button></div>
       <fieldset className="personal-repeat-weekdays"><legend>每周重复日</legend>{repeatWeekdays.map(item=><label key={item.day}><input type="checkbox" checked={draftDays.includes(item.day)} onChange={event=>setDraftDays(current=>event.target.checked ? [...current,item.day] : current.filter(day=>day!==item.day))} />{item.name}</label>)}</fieldset>
       <label>结束日期<input aria-label="重复结束日期" type="date" value={draftUntil} onChange={event=>setDraftUntil(event.target.value)} /></label>
-      <p>默认一个月，可自行调整。每次日程可以单独完成和填写总结。</p>
+      <p>默认一个月，可自行调整。每次可单独完成，整组共享同一份备注。</p>
       {error && <p role="alert" className="personal-form-error">{error}</p>}
       <footer><button type="button" onClick={close}>取消</button><button type="button" className="confirm-repeat" onClick={confirm}>确定重复</button></footer>
     </dialog>

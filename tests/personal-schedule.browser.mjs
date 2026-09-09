@@ -168,7 +168,7 @@ try {
   assert.equal(await page.locator('.personal-edit-modal').count(), 0);
   await track.locator('.personal-card').filter({ hasText: '拖动新建验证' }).click();
   assert.equal(await page.locator('.personal-edit-modal > header strong').textContent(), '修改个人任务');
-  await page.getByRole('textbox', { name: '总结', exact: true }).fill('第一行总结\n第二行总结');
+  await page.getByRole('textbox', { name: '备注', exact: true }).fill('第一行总结\n第二行总结');
   await page.locator('.personal-edit-modal .save').click();
   assert.equal(await page.locator('.personal-card-check').count(), 0);
   const summaryCard = track.locator('.personal-card').filter({hasText:'拖动新建验证'});
@@ -299,8 +299,8 @@ try {
     };
     window.renderDesktop();
   });
-  await page.locator('.desk-events li').first().waitFor();
-  assert.equal(await page.locator('.desk-events li').count(),3);
+  await page.locator('.desk-schedule .desk-events li').first().waitFor();
+  assert.equal(await page.locator('.desk-schedule .desk-events li').count(),3);
   assert.equal(await page.getByText('其他成员不应显示').count(),0);
   assert.equal(await page.evaluate(()=>window.desktopWrites),0);
   mkdirSync(new URL('../work/',import.meta.url),{recursive:true});
@@ -308,7 +308,7 @@ try {
   await page.getByRole('button',{name:'下一周',exact:true}).click();
   await page.getByText('这一天还没有安排',{exact:true}).waitFor();
   await page.getByRole('button',{name:'今天',exact:true}).click();
-  assert.equal(await page.locator('.desk-events li').count(),3);
+  assert.equal(await page.locator('.desk-schedule .desk-events li').count(),3);
   await page.evaluate(()=>{window.desktopData.push({id:6,owner:'xzx',title:'同步新增任务',due:window.desktopData[0].due,startTime:'18:00',endTime:'19:00',category:'同步',done:false});});
   await page.locator('.desk-events').getByText('同步新增任务',{exact:true}).waitFor({timeout:20000});
   assert.equal(await page.evaluate(()=>window.desktopWrites),0);
@@ -421,7 +421,7 @@ try {
   assert.equal(new Set(series.map(t=>t.id)).size,4);
   assert.deepEqual(series.map(t=>new Date(t.due+'T12:00:00Z').getUTCDay()),[3,4,3,4]);
   assert.equal(new Set(series.map(t=>t.seriesId)).size,1);
-  assert.deepEqual(series.map(t=>t.note),['只属于第一次的总结','','','']);
+  assert.deepEqual(series.map(t=>t.note),Array(4).fill('只属于第一次的总结'));
   const groupedCategory=page.locator('[data-personal-category="蓝色学习"]');
   if (await groupedCategory.locator('button').first().getAttribute('aria-expanded') !== 'true') await groupedCategory.locator('button').first().click();
   const groupedSidebar=page.locator(`[data-repeat-group="${series[0].seriesId}"]`);
@@ -445,7 +445,7 @@ try {
   await secondOccurrence.click();
   await page.locator('textarea[name=note]').fill('第二次独立总结');
   await page.locator('.personal-edit-modal .save').click();
-  assert.deepEqual(await page.evaluate(id=>window.fixture['tongpin-personal-tasks-v3'].filter(t=>t.seriesId===id).map(t=>t.note),series[0].seriesId),['只属于第一次的总结','第二次独立总结','','']);
+  assert.deepEqual(await page.evaluate(id=>window.fixture['tongpin-personal-tasks-v3'].filter(t=>t.seriesId===id).map(t=>t.note),series[0].seriesId),Array(4).fill('第二次独立总结'));
   await secondOccurrence.click();
   page.once('dialog',dialog=>dialog.accept());
   await page.getByRole('button',{name:'停止后续重复',exact:true}).click();
@@ -453,7 +453,7 @@ try {
   assert.equal(await groupedSidebar.count(),1);
   assert.match(await groupedSidebar.textContent(),/剩余 1 次/);
   console.log('PASS: repeat sidebar grouped with accurate entry counts, calendar keeps every occurrence, completing one advances the entry and remaining count');
-  console.log('PASS: category color selection, rename and remount; weekly recurring dates, independent completion and summaries, stop future preserves past and current');
+  console.log('PASS: category color selection, rename and remount; weekly recurring dates, independent completion and shared notes, stop future preserves past and current');
   await page.evaluate(()=>{
     window.fixture['tongpin-personal-tasks-v3']=[1,2,3,4].map(id=>({id:9000+id,title:'重复修改验证',owner:'xzx',category:'蓝色学习',seriesId:'scope-fixture',due:`2026-09-${String(id+6).padStart(2,'0')}`,repeatDate:`2026-09-${String(id+6).padStart(2,'0')}`,repeatUntil:'2026-10-07',repeatRule:'daily',startTime:'09:00',endTime:'10:00',note:`第${id}次总结`,done:id===4}));
     window.renderSchedule();
@@ -473,7 +473,7 @@ try {
   await page.locator('.personal-edit-modal .save').click();
   await scopeDialog.getByRole('button',{name:/修改本次及以后/}).click();
   assert.deepEqual(await page.evaluate(()=>window.fixture['tongpin-personal-tasks-v3'].map(t=>t.title)),['重复修改验证','本次及以后改名','本次及以后改名','重复修改验证']);
-  assert.deepEqual(await page.evaluate(()=>window.fixture['tongpin-personal-tasks-v3'].map(t=>t.note)),['第1次总结','仅本次的新总结','第3次总结','第4次总结']);
+  assert.deepEqual(await page.evaluate(()=>window.fixture['tongpin-personal-tasks-v3'].map(t=>t.note)),Array(4).fill('仅本次的新总结'));
   await scopeCard.click();
   await page.locator('input[name=title]').fill('取消的草稿');
   await page.locator('.personal-edit-modal .save').click();
@@ -490,5 +490,18 @@ try {
   assert.equal(await page.evaluate(()=>window.fixture['tongpin-personal-tasks-v3'][1].endTime),'10:00');
   await scopeDialog.getByRole('button',{name:/修改本次及以后/}).click();
   assert.deepEqual(await page.evaluate(()=>window.fixture['tongpin-personal-tasks-v3'].map(t=>t.endTime)),['10:00','10:30','10:30','10:00']);
-  console.log('PASS: edit/resize scope chooser, single vs following, no save before choice, cancellation retains draft, past/completed and individual summaries preserved');
+  console.log('PASS: edit/resize scope chooser, single vs following, no save before choice, cancellation retains draft, past/completed schedules preserved and notes shared');
+  await page.locator('[data-schedule-id="9004"]').click();
+  assert.equal(await page.getByRole('textbox',{name:'备注',exact:true}).inputValue(),'仅本次的新总结');
+  await page.getByRole('textbox',{name:'备注',exact:true}).fill('从已完成日程更新统一备注');
+  await page.locator('.personal-edit-modal .save').click();
+  assert.equal(await scopeDialog.count(),0);
+  assert.deepEqual(await page.evaluate(()=>window.fixture['tongpin-personal-tasks-v3'].map(t=>t.note)),Array(4).fill('从已完成日程更新统一备注'));
+  await page.evaluate(()=>window.renderSchedule());
+  await page.locator('[data-schedule-id="9001"]').click();
+  assert.equal(await page.getByRole('textbox',{name:'备注',exact:true}).inputValue(),'从已完成日程更新统一备注');
+  await page.getByRole('textbox',{name:'备注',exact:true}).fill('');
+  await page.locator('.personal-edit-modal .save').click();
+  assert.deepEqual(await page.evaluate(()=>window.fixture['tongpin-personal-tasks-v3'].map(t=>t.note)),Array(4).fill(''));
+  console.log('PASS: notes label, create/update/clear shared series note, completed occurrence editing, remount, no scope chooser for note-only edits');
 } finally { await browser.close(); }

@@ -5,14 +5,14 @@ const fixtures=()=>[1,2,3,4].map((id)=>({id,title:'钢琴',owner:'xzx',category:
 test('single edit changes only selected occurrence',()=>{
  const tasks=fixtures();const result=applyRepeatEdit(tasks,2,{title:'练琴',startTime:'10:00',endTime:'11:00',note:'新的总结'},'single');
  assert.equal(result[1].title,'练琴');assert.equal(result[1].note,'新的总结');
- for(const i of [0,2,3])assert.deepEqual(result[i],tasks[i]);
+ for(const i of [0,2,3])assert.deepEqual(result[i],{...tasks[i],note:'新的总结'});
 });
-test('following edit skips previous and completed occurrences; summaries remain individual',()=>{
+test('following schedule edit skips previous/completed occurrences while notes are shared',()=>{
  const tasks=fixtures();const result=applyRepeatEdit(tasks,2,{title:'练琴',category:'练习',endTime:'10:30',note:'修改本次总结'},'following');
- assert.deepEqual(result[0],tasks[0]);assert.deepEqual(result[3],tasks[3]);
+ assert.deepEqual(result[0],{...tasks[0],note:'修改本次总结'});assert.deepEqual(result[3],{...tasks[3],note:'修改本次总结'});
  assert.deepEqual(result.slice(1,3).map(t=>t.title),['练琴','练琴']);
  assert.deepEqual(result.slice(1,3).map(t=>t.endTime),['10:30','10:30']);
- assert.equal(result[1].note,'修改本次总结');assert.equal(result[2].note,'第3次总结');
+ assert.ok(result.every(task=>task.note==='修改本次总结'));
 });
 test('moving following occurrences shifts dates without putting them on one day',()=>{
  const tasks=fixtures();const result=applyRepeatEdit(tasks,2,{due:'2026-09-10'},'following');
