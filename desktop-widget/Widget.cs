@@ -74,7 +74,7 @@ sealed class Widget : Form
         StartPosition = FormStartPosition.Manual;
         AutoScaleMode = AutoScaleMode.None;
         FormBorderStyle = FormBorderStyle.None;
-        ShowInTaskbar = true;
+        ShowInTaskbar = false;
         var working = Screen.PrimaryScreen.WorkingArea;
         using (var g = CreateGraphics()) scale = g.DpiX / 96f;
         int width = Math.Min((int)(410 * scale), working.Width - 40);
@@ -104,7 +104,7 @@ sealed class Widget : Form
         bubbleWindow.FormBorderStyle = FormBorderStyle.None;
         bubbleWindow.AutoScaleMode = AutoScaleMode.None;
         bubbleWindow.StartPosition = FormStartPosition.Manual;
-        bubbleWindow.ShowInTaskbar = true;
+        bubbleWindow.ShowInTaskbar = false;
         bubbleWindow.Icon = Icon;
         bubbleWindow.Text = "同屏 · 点击展开";
         bubbleWindow.BackColor = Color.FromArgb(75, 112, 181);
@@ -124,7 +124,7 @@ sealed class Widget : Form
         bubble.MouseUp += delegate { bubble.Capture = false; };
         bubbleWindow.Controls.Add(bubble);
         using (var circle = new GraphicsPath()) { circle.AddEllipse(bubbleWindow.ClientRectangle); bubbleWindow.Region = new Region(circle); }
-        menu.Items.Add("展开日程", null, delegate { Expand(); });
+        menu.Items.Add("展开日程", null, delegate { Reveal(); });
         menu.Items.Add("收起为小圆点", null, delegate { Collapse(); });
         menu.Items.Add("刷新日程", null, delegate { if (browser.CoreWebView2 != null) browser.Reload(); });
         menu.Items.Add("恢复右侧位置", null, delegate { ResetPosition(); });
@@ -394,7 +394,7 @@ sealed class Widget : Form
                 if (await browser.ExecuteScriptAsync("!!document.querySelector('.desk-sync') && document.querySelector('.desk-sync').textContent.includes('已同步')") == "true") { synced = true; break; }
             }
             if (!synced) throw new InvalidOperationException("Sync not ready");
-            bool independent = Native.GetParent(Handle) == IntPtr.Zero && (Native.GetWindowLong(Handle, -16) & 0x40000000) == 0 && !TopMost && ShowInTaskbar;
+            bool independent = IsIndependentSurface(this) && !TopMost && !ShowInTaskbar && (Native.GetWindowLong(Handle, -20) & 0x40000) == 0;
             if (!independent) throw new InvalidOperationException("Window is not independent");
             Rectangle initialBounds = desired;
             await VerifyPointerGesture("header", -40, 10, false);
@@ -415,13 +415,13 @@ sealed class Widget : Form
             await CaptureHealthyPreview("preview.png");
             WindowState = FormWindowState.Minimized;
             Reveal();
-            if (WindowState != FormWindowState.Normal || Native.GetParent(Handle) != IntPtr.Zero) throw new InvalidOperationException("Restore independent window failed");
+            if (WindowState != FormWindowState.Normal || !IsIndependentSurface(this)) throw new InvalidOperationException("Restore independent window failed");
             var fullSize = Size;
             if (!webToolbar || header.Visible || browser.Top != 0) throw new InvalidOperationException("Native header still visible");
             if (await browser.ExecuteScriptAsync("(()=>{let h=document.getElementById('tongpin-widget-controls'),s=h.shadowRoot;return ['collapse','close'].every(id=>{let b=s.getElementById(id),r=b.getBoundingClientRect();return r.width>=36 && r.height>=30 && s.elementFromPoint(r.x+r.width/2,r.y+r.height/2)===b})})()") != "true") throw new InvalidOperationException("Web controls obstructed");
             await browser.ExecuteScriptAsync("document.getElementById('tongpin-widget-controls').shadowRoot.getElementById('collapse').click()");
             await Task.Delay(1000);
-            if (!collapsed || Visible || bubbleWindow.Width != (int)(54 * scale) || !bubbleWindow.Visible || Native.GetParent(bubbleWindow.Handle) != IntPtr.Zero) throw new InvalidOperationException("Collapse failed: width=" + bubbleWindow.Width + ", expected=" + (int)(54 * scale) + ", parent=" + Native.ClassName(Native.GetParent(bubbleWindow.Handle)));
+            if (!collapsed || Visible || bubbleWindow.Width != (int)(54 * scale) || !bubbleWindow.Visible || !IsIndependentSurface(bubbleWindow) || bubbleWindow.ShowInTaskbar || (Native.GetWindowLong(bubbleWindow.Handle, -20) & 0x40000) != 0) throw new InvalidOperationException("Collapse failed: width=" + bubbleWindow.Width + ", expected=" + (int)(54 * scale) + ", parent=" + Native.ClassName(Native.GetParent(bubbleWindow.Handle)));
             using (var bitmap = new Bitmap(bubble.Width, bubble.Height)) { bubble.DrawToBitmap(bitmap, bubble.ClientRectangle); bitmap.Save(Path.Combine(dataPath, "bubble.png")); }
             bubble.PerformClick();
             if (collapsed || !browser.Visible || Size != fullSize) throw new InvalidOperationException("Expand failed");
@@ -432,7 +432,7 @@ sealed class Widget : Form
             for (int i = 0; i < 40; i++) { await Task.Delay(500); if (await browser.ExecuteScriptAsync("!!document.querySelector('.desk-sync') && document.querySelector('.desk-sync').textContent.includes('已同步')") == "true") { restored = true; break; } }
             if (!restored) throw new InvalidOperationException("Repaint recovery failed");
             await CaptureHealthyPreview("recovered.png");
-            WriteStatus("verified:software-rendering,nonblack-preview,repaint-recovery,direct-drag,edge-resize,independent-window,https-sync,collapse-expand,close");
+            WriteStatus("verified:software-rendering,nonblack-preview,repaint-recovery,direct-drag,edge-resize,independent-window,no-taskbar-icons,https-sync,collapse-expand,close");
             try { await browser.ExecuteScriptAsync("document.getElementById('tongpin-widget-controls').shadowRoot.getElementById('close').click()"); } catch { if (!closing) throw; }
             await Task.Delay(300);
             if (!closing) throw new InvalidOperationException("Close button failed");
@@ -464,8 +464,19 @@ sealed class Widget : Form
     void WriteStatus(string state)
     {
         try {
-            File.WriteAllText(Path.Combine(dataPath, verify ? "verification.json" : "status.json"), json.Serialize(new { state = state, renderMode = "software", pid = System.Diagnostics.Process.GetCurrentProcess().Id, windowMode = "independent", collapsed = collapsed, visible = Visible, bubbleVisible = bubbleWindow.Visible, parentClass = Native.ClassName(Native.GetParent(Handle)), topmost = (Native.GetWindowLong(Handle, -20) & 8) != 0, width = Width, height = Height, timestamp = DateTimeOffset.Now.ToString("o") }));
+            File.WriteAllText(Path.Combine(dataPath, verify ? "verification.json" : "status.json"), json.Serialize(new { state = state, renderMode = "software", pid = System.Diagnostics.Process.GetCurrentProcess().Id, windowMode = "independent", taskbarIcon = ShowInTaskbar, bubbleTaskbarIcon = bubbleWindow.ShowInTaskbar, independent = IsIndependentSurface(this), collapsed = collapsed, visible = Visible, bubbleVisible = bubbleWindow.Visible, parentClass = Native.ClassName(Native.GetParent(Handle)), topmost = (Native.GetWindowLong(Handle, -20) & 8) != 0, width = Width, height = Height, timestamp = DateTimeOffset.Now.ToString("o") }));
         } catch { }
+    }
+    static bool IsIndependentSurface(Form surface)
+    {
+        if ((Native.GetWindowLong(surface.Handle, -16) & 0x40000000) != 0) return false;
+        IntPtr owner = Native.GetParent(surface.Handle);
+        if (owner == IntPtr.Zero) return true;
+        // WinForms hides taskbar entries through an invisible owner in our own
+        // process. This is not a child window or an attachment to Explorer.
+        uint ownerProcess;
+        Native.GetWindowThreadProcessId(owner, out ownerProcess);
+        return ownerProcess == (uint)System.Diagnostics.Process.GetCurrentProcess().Id;
     }
 }
 
@@ -489,6 +500,7 @@ sealed class PetButton : Button
 static class Native
 {
     [DllImport("user32.dll")] public static extern IntPtr GetParent(IntPtr window);
+    [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr window, out uint processId);
     [DllImport("user32.dll")] public static extern int GetWindowLong(IntPtr window, int index);
     [DllImport("user32.dll", CharSet = CharSet.Unicode)] static extern int GetClassName(IntPtr window, StringBuilder name, int count);
     public static string ClassName(IntPtr window) { var name = new StringBuilder(256); GetClassName(window, name, name.Capacity); return name.ToString(); }
