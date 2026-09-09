@@ -11,7 +11,14 @@
 .weekly-plan-pending{padding:22px 18px;background:#faf8fc;border-right:1px solid #eee8f3;overflow-y:auto;min-height:0}
 .weekly-plan-pending-heading{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:16px}
 .weekly-plan-pending-heading h3{margin:0;font-size:14px;font-weight:600}
-.weekly-plan-pending-heading>span{font-size:11px;color:#8b709d;background:#eee7f6;border-radius:12px;padding:2px 8px}
+.weekly-plan-pending-heading>span{margin-left:auto;font-size:11px;color:#8b709d;background:#eee7f6;border-radius:12px;padding:2px 8px}
+.weekly-plan-pending-add{width:28px;height:28px;border:0;border-radius:8px;background:#e9dff3;color:#75548d;font-size:20px;line-height:1;cursor:pointer}
+.weekly-plan-pending-add:focus-visible,.weekly-plan-pending-editor :focus-visible{outline:2px solid #a48abe;outline-offset:2px}
+.weekly-plan-pending-editor{margin-bottom:18px}
+.weekly-plan-pending-editor input,.weekly-plan-pending-editor select{box-sizing:border-box;width:100%;min-width:0;padding:9px 8px;margin-bottom:8px;border:1px solid #dfd2e9;border-radius:7px;background:#fff;color:#4a4055;font:inherit;font-size:12px}
+.weekly-plan-pending-editor>div{display:flex;gap:8px}
+.weekly-plan-pending-editor button{padding:6px 12px;border:1px solid #dfd2e9;border-radius:7px;background:#fff;color:#80648f;font-size:12px;cursor:pointer}
+.weekly-plan-pending-editor button:first-child{background:#9277a6;border-color:#9277a6;color:#fff}
 .weekly-plan-pending ul{list-style:none;margin:0;padding:0}
 .weekly-plan-pending li{padding:12px 0;border-bottom:1px solid #ece6f1;overflow-wrap:anywhere}
 .weekly-plan-pending li:first-child{padding-top:0}

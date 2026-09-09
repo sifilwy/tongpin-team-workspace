@@ -6,7 +6,7 @@ import "../weekly-plan.css";
 type Plan = {weekly:string;ballWeekly?:string;summary:string;days:Record<string,string>};
 type Document = {revision:number;value:Plan};
 const weekdays=['周一','周二','周三','周四','周五','周六','周日'];
-export default function WeeklyPlanDialog({ owner, week, pending=[], onClose }: {owner:string;week:string;pending?:{id:number;title:string;category:string}[];onClose:()=>void}) {
+export default function WeeklyPlanDialog({ owner, week, pending=[], categories, onAddPending, onClose }: {owner:string;week:string;pending?:{id:number;title:string;category:string}[];categories:string[];onAddPending:(title:string,category:string)=>void;onClose:()=>void}) {
   const key=weekPlanKey(owner,week);
   const dates=weekPlanDates(week);
   const [base,setBase]=useState<Plan>(()=>emptyWeekPlan(week));
@@ -18,6 +18,17 @@ export default function WeeklyPlanDialog({ owner, week, pending=[], onClose }: {
   const [retry,setRetry]=useState(0);
   const [selectedDay,setSelectedDay]=useState(0);
   const [category,setCategory]=useState<'independent'|'ball'>('independent');
+  const [addingPending,setAddingPending]=useState(false);
+  const [pendingTitle,setPendingTitle]=useState('');
+  const [pendingCategory,setPendingCategory]=useState(categories[0] || '独立');
+  const pendingInput=useRef<HTMLInputElement>(null);
+  useEffect(()=>{if(addingPending)pendingInput.current?.focus();},[addingPending]);
+  function addPending() {
+    if(!pendingTitle.trim())return;
+    onAddPending(pendingTitle.trim(),categories.includes(pendingCategory)?pendingCategory:categories[0]);
+    setPendingTitle('');setAddingPending(false);
+    if(error==='请先添加或取消左侧正在输入的任务')setError('');
+  }
   const dialog=useRef<HTMLDialogElement>(null);
   const guard=useRef({mounted:false,busy:false,abort:new AbortController()});
   const dirty=JSON.stringify(base)!==JSON.stringify(draft);
@@ -43,12 +54,13 @@ export default function WeeklyPlanDialog({ owner, week, pending=[], onClose }: {
     return()=>{cancelled=true;};
   },[retry]);
   useEffect(()=>{
-    if(!dirty)return;
+    if(!dirty && !pendingTitle.trim())return;
     const warn=(event:BeforeUnloadEvent)=>{event.preventDefault();event.returnValue="";};
     window.addEventListener("beforeunload",warn);return()=>window.removeEventListener("beforeunload",warn);
-  },[dirty]);
+  },[dirty,pendingTitle]);
   async function save(close=false) {
     if(guard.current.busy)return;
+    if(close && pendingTitle.trim()){setError('请先添加或取消左侧正在输入的任务');pendingInput.current?.focus();return;}
     if(!ready || !dirty){if(close)onClose();return;}
     guard.current.busy=true;setBusy(true);setError("");setNotice("");
     try {
@@ -70,7 +82,12 @@ export default function WeeklyPlanDialog({ owner, week, pending=[], onClose }: {
       <header><div><h2>每周计划</h2><span>{owner} · {week} — {dates[6]}</span></div><button type="button" aria-label="关闭计划" disabled={busy} onClick={()=>void save(true)}>×</button></header>
       <div className="weekly-plan-content">
       <aside className="weekly-plan-pending" aria-label="待安排">
-        <div className="weekly-plan-pending-heading"><h3>待安排</h3><span>{pending.length}</span></div>
+        <div className="weekly-plan-pending-heading"><h3>待安排</h3><span>{pending.length}</span><button type="button" className="weekly-plan-pending-add" aria-label="添加待安排任务" title="添加待安排任务" aria-expanded={addingPending} disabled={busy || !categories.length} onClick={()=>{if(!addingPending){const preferred=category==='ball'?'皮球':'独立';setPendingCategory(categories.includes(preferred)?preferred:categories[0]);setAddingPending(true);}else pendingInput.current?.focus();}}>＋</button></div>
+        {addingPending && <div className="weekly-plan-pending-editor">
+          <input ref={pendingInput} aria-label="待安排任务名称" maxLength={200} value={pendingTitle} onChange={event=>setPendingTitle(event.target.value)} placeholder="写下待办事项" onKeyDown={event=>{if(event.key==='Enter' && !event.nativeEvent.isComposing){event.preventDefault();addPending();}}} />
+          <select aria-label="待安排任务分类" value={categories.includes(pendingCategory)?pendingCategory:categories[0]} onChange={event=>setPendingCategory(event.target.value)}>{categories.map(item=><option key={item}>{item}</option>)}</select>
+          <div><button type="button" disabled={!pendingTitle.trim() || busy} onClick={addPending}>添加</button><button type="button" onClick={()=>{setPendingTitle('');setAddingPending(false);}}>取消</button></div>
+        </div>}
         {pending.length ? <ul>{pending.map(task=><li key={task.id}><strong>{task.title}</strong><small>{task.category}</small></li>)}</ul> : <p>暂无待安排任务</p>}
       </aside>
       <div className="weekly-plan-body">

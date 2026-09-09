@@ -522,6 +522,15 @@ try {
   const selectedWeek=await page.locator('.personal-day-track').first().getAttribute('data-due');
   await page.getByRole('button',{name:'计划',exact:true}).click();
   const planDialog=page.getByRole('dialog',{name:'每周计划',exact:true});
+  await planDialog.getByRole('button',{name:'添加待安排任务',exact:true}).click();
+  const pendingEditor=planDialog.locator('.weekly-plan-pending-editor');
+  assert.equal(await pendingEditor.getByRole('button',{name:'添加',exact:true}).isDisabled(),true);
+  await pendingEditor.getByRole('textbox',{name:'待安排任务名称',exact:true}).fill('计划里新增的待办');
+  const addedCategory=await pendingEditor.getByRole('combobox').inputValue();
+  await pendingEditor.getByRole('textbox').press('Enter');
+  await planDialog.locator('.weekly-plan-pending').getByText('计划里新增的待办',{exact:true}).waitFor();
+  const addedPending=await page.evaluate(()=>window.fixture['tongpin-personal-tasks-v3'].find(task=>task.title==='计划里新增的待办'));
+  assert.equal(addedPending.owner,'xzx');assert.equal(addedPending.due,null);assert.equal(addedPending.done,false);assert.equal(addedPending.category,addedCategory);
   await planDialog.getByRole('textbox',{name:'本周计划',exact:true}).fill('本周集中完成课程');
   await planDialog.getByRole('textbox',{name:'周一计划',exact:true}).fill('准备第一节课');
   assert.equal(await planDialog.getByRole('textbox').count(),2);
