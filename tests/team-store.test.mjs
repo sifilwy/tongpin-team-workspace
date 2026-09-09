@@ -15,6 +15,24 @@ after(() => {
 const { handleTeam } = await import('../app/lib/team-store.ts');
 const call = (body, cookie = '') => handleTeam(new Request('http://localhost/api/team', { method: 'POST', headers: { cookie, 'Content-Type': 'application/json' }, body: JSON.stringify(body) }));
 
+test('weekly plans persist separately across weeks and members with revision protection',async()=>{
+ const {emptyWeekPlan,weekPlanKey}=await import('../app/lib/weekly-plan.mjs');
+ await handleTeam(new Request('http://localhost/api/team'));
+ const codes=JSON.parse(readFileSync(join(directory,'invitations.json'),'utf8'));
+ const login=await call({action:'login',code:codes.xzx});const cookie=login.headers.get('set-cookie').split(';')[0];
+ const key=weekPlanKey('xzx','2026-09-07');const value={...emptyWeekPlan('2026-09-07'),weekly:'这周的计划',summary:'这周的总结'};
+ assert.equal((await call({key,revision:0,value},cookie)).status,200);
+ assert.equal((await call({key,revision:0,value},cookie)).status,409);
+ for(const other of [weekPlanKey('xzx','2026-09-14'),weekPlanKey('czl','2026-09-07')]){
+  const result=await handleTeam(new Request(`http://localhost/api/team?key=${encodeURIComponent(other)}`,{headers:{cookie}}));
+  assert.equal((await result.json()).document,null);
+ }
+ const restored=await handleTeam(new Request(`http://localhost/api/team?key=${encodeURIComponent(key)}`,{headers:{cookie}}));
+ assert.deepEqual((await restored.json()).document.value,value);
+ assert.equal((await call({key,revision:1,value:{...value,days:{}}},cookie)).status,400);
+ assert.equal((await call({key:weekPlanKey('xzx','2026-09-08'),revision:0,value},cookie)).status,400);
+});
+
 test('personal category colors persist per member and reject unknown colors', async()=>{
   await handleTeam(new Request('http://localhost/api/team'));
   const codes=JSON.parse(readFileSync(join(directory,'invitations.json'),'utf8'));

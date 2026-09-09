@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { randomBytes, createHash } from "node:crypto";
 import { personalPalette } from "./personal-colors.mjs";
 import { PERSONALITY_KEY, validPersonality } from "./personality-data.mjs";
+import { isWeeklyPlanKey, validWeekPlan } from "./weekly-plan.mjs";
 
 const names = ["xzx", "吃吃", "czl", "子涵", "悦悦"];
 const dir = process.env.TONGPIN_DATA_DIR || join(process.cwd(), ".team-data");
@@ -39,7 +40,7 @@ export async function handleTeam(request: Request) {
     if (!member) return reply({ error: "请使用邀请码进入" }, 401);
     const key = new URL(request.url).searchParams.get("key");
     if (key === PERSONALITY_KEY && member !== "xzx") return reply({ error: "无权访问此内容" }, 403);
-    if (key && !allowed.has(key)) return reply({ error: "未知数据类型" }, 400);
+    if (key && !allowed.has(key) && !isWeeklyPlanKey(key)) return reply({ error: "未知数据类型" }, 400);
     return reply(key ? { member, document: state.documents[key] || null } : { member });
   }
   const raw = await request.text();
@@ -65,14 +66,16 @@ export async function handleTeam(request: Request) {
   }
   if (!member) return reply({ error: "登录已过期，请重新进入" }, 401);
   if (body.action === "logout") { delete state.sessions[hash(token)]; save(state); return reply({}, 200, { "Set-Cookie": `tongpin_session=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0${secureCookie ? "; Secure" : ""}` }); }
-  if (!allowed.has(body.key)) return reply({ error: "未知数据类型" }, 400);
+  if (!allowed.has(body.key) && !isWeeklyPlanKey(body.key)) return reply({ error: "未知数据类型" }, 400);
   if (body.key === PERSONALITY_KEY && member !== "xzx") return reply({ error: "无权访问此内容" }, 403);
   const previous = state.documents[body.key];
   if ((previous?.revision || 0) !== body.revision) return reply({ error: "另一位成员已更新，请刷新后重试", document: previous }, 409);
   const isColors = body.key === "tongpin-personal-category-colors-v1";
   const isPersonality = body.key === PERSONALITY_KEY;
+  const isWeekPlan = isWeeklyPlanKey(body.key);
+  if (isWeekPlan && !validWeekPlan(body.value, body.key.split(":").at(-1))) return reply({ error: "计划内容格式不正确，每项最多一万字" }, 400);
   if (isPersonality && !validPersonality(body.value)) return reply({ error: "请填写有效内容（每项最多一万字，最多 1000 条记录）" }, 400);
-  if (body.key.endsWith("categories-v2") || isColors || isPersonality ? !body.value || Array.isArray(body.value) || typeof body.value !== "object" : !Array.isArray(body.value)) return reply({ error: "数据格式不正确" }, 400);
+  if (body.key.endsWith("categories-v2") || isColors || isPersonality || isWeekPlan ? !body.value || Array.isArray(body.value) || typeof body.value !== "object" : !Array.isArray(body.value)) return reply({ error: "数据格式不正确" }, 400);
   if (isColors && Object.entries(body.value).some(([owner, colors]) => !names.includes(owner) || !colors || Array.isArray(colors) || typeof colors !== "object" || Object.values(colors).some(color => !personalPalette.some(item => item.id === color)))) return reply({ error: "分类配色无效" }, 400);
   if (Array.isArray(body.value)) {
     if (body.value.some((item: any) => !item || typeof item !== "object" || !Number.isFinite(item.id))) return reply({ error: "任务格式不正确" }, 400);

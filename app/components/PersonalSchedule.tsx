@@ -9,6 +9,7 @@ import { groupPersonalTasks } from "../lib/personal-task-groups.mjs";
 import { applyRepeatEdit, changedTaskFields, laterOccurrence, scheduleFields } from "../lib/personal-repeat-edit.mjs";
 import PersonalRepeatScope from "./PersonalRepeatScope";
 import { unifyRepeatNotes } from "../lib/personal-shared-notes.mjs";
+import WeeklyPlanDialog from "./WeeklyPlanDialog";
 
 import { CSSProperties, FormEvent, MouseEvent, PointerEvent as ReactPointerEvent, useEffect, useMemo, useRef, useState } from "react";
 import { computeOverlapLayout, snapStart, toMinutes, toTime } from "../lib/personal-layout.mjs";
@@ -83,6 +84,9 @@ export default function PersonalSchedule() {
   const [completedView, setCompletedView] = useState(false);
   const [openCategories, setOpenCategories] = useState<Record<Owner, string[]>>(() => createDefaultCategories());
   const [weekOffset, setWeekOffset] = useState(0);
+  const [planContext,setPlanContext] = useState<{owner:Owner;week:string} | null>(null);
+  const [calendarToday,setCalendarToday] = useState(()=>iso(new Date()));
+  useEffect(()=>{const timer=window.setInterval(()=>setCalendarToday(iso(new Date())),60000);return()=>window.clearInterval(timer);},[]);
   const [dragId, setDragId] = useState<number | null>(null);
   const [dropKey, setDropKey] = useState<string | null>(null);
   const [editing, setEditing] = useState<PersonalTask | null>(null);
@@ -171,7 +175,7 @@ export default function PersonalSchedule() {
     if (edgeTimer.current !== null) window.clearTimeout(edgeTimer.current);
   }, []);
 
-  const now = new Date();
+  const now = new Date(`${calendarToday}T12:00:00`);
   const weekStart = addDays(mondayOf(now), weekOffset * 7);
   const dates = Array.from({ length: 7 }, (_, index) => addDays(weekStart, index));
   const filtered = useMemo(() => tasks.filter((task) => allView || task.owner === owner), [allView, owner, tasks]);
@@ -498,7 +502,7 @@ export default function PersonalSchedule() {
     </aside>
 
     <main className="personal-main">
-      <header className="personal-topbar"><div><span>{completedView ? "全部成员" : allView ? "全部成员" : owner}</span><strong>{completedView ? "已完成任务" : `${weekStart.getFullYear()}年${String(weekStart.getMonth() + 1).padStart(2, "0")}月`}</strong></div><div className="personal-top-actions"><button className={`all-view-button ${allView ? "active" : ""}`} onClick={() => { if (allView) { setAllView(false); setCompletedView(false); } else setAllView(true); }}>{allView ? "返回我的日程" : "查看全员"}</button>{allView && <button className={`personal-completed-button ${completedView ? "active" : ""}`} onClick={() => setCompletedView((value) => !value)}>已完成 <b>{completedTasks.length}</b></button>}<button className="personal-create" onClick={() => openNew({ owner: allView ? "xzx" : owner, due: iso(now) })}>＋ 添加</button>{!completedView && <div className="personal-week-switch"><button aria-label="上一周" onClick={() => setWeekOffset((value) => value - 1)}>‹</button><button onClick={() => setWeekOffset(0)}>本周</button><button aria-label="下一周" onClick={() => setWeekOffset((value) => value + 1)}>›</button></div>}</div></header>
+      <header className="personal-topbar"><div><span>{completedView ? "全部成员" : allView ? "全部成员" : owner}</span><strong>{completedView ? "已完成任务" : `${weekStart.getFullYear()}年${String(weekStart.getMonth() + 1).padStart(2, "0")}月`}</strong></div><div className="personal-top-actions"><button className={`all-view-button ${allView ? "active" : ""}`} onClick={() => { if (allView) { setAllView(false); setCompletedView(false); } else setAllView(true); }}>{allView ? "返回我的日程" : "查看全员"}</button>{allView && <button className={`personal-completed-button ${completedView ? "active" : ""}`} onClick={() => setCompletedView((value) => !value)}>已完成 <b>{completedTasks.length}</b></button>}<button type="button" className="personal-plan-button" onClick={()=>setPlanContext({owner:allView ? member : owner,week:iso(weekStart)})}>计划</button><button className="personal-create" onClick={() => openNew({ owner: allView ? "xzx" : owner, due: iso(now) })}>＋ 添加</button>{!completedView && <div className="personal-week-switch"><button aria-label="上一周" onClick={() => setWeekOffset((value) => value - 1)}>‹</button><button onClick={() => setWeekOffset(0)}>本周</button><button aria-label="下一周" onClick={() => setWeekOffset((value) => value + 1)}>›</button></div>}</div></header>
 
       {completedView ? <section className="personal-completed-view"><header><div><strong>全部已完成</strong><span>先集中放在这里，后续再细分</span></div><b>{completedTasks.length}</b></header><div className="personal-completed-grid">{completedTasks.map((task) => { const person = PEOPLE.find((item) => item.name === task.owner)!; return <button key={task.id} onClick={() => clickTask(task)} onContextMenu={(event) => openMenu(event, task.id)}><i style={{ background: person.color }}>{task.owner[0]}</i><span><strong>{task.title}</strong><small>{task.owner} · {task.category} · {task.due?.replaceAll("-", "/") || "未安排"}</small></span><em>已完成</em></button>; })}</div></section> : <>
       {dragId !== null && <><div className="personal-edge prev" /><div className="personal-edge next" /></>}
@@ -530,6 +534,7 @@ ${task.note}` : ""}`} style={style} draggable={false} className={`personal-card 
     {menu && (() => { const task = tasks.find((item) => item.id === menu.id); if (!task) return null; return <div className="personal-context" style={{ left: menu.x, top: menu.y }} onPointerDown={(event) => event.stopPropagation()}><strong>{task.title}</strong><button onClick={() => { setTasks((current) => current.map((item) => item.id === task.id ? { ...item, done: !item.done } : item)); setMenu(null); }}>{task.done ? "恢复未完成" : "标记完成"}</button><button onClick={() => { openEditor(task); setMenu(null); }}>修改任务</button>{task.due && <button onClick={() => { moveTask(task.id, { due: null, done: false }); setMenu(null); }}>移回待办</button>}{task.seriesId && <button onClick={() => stopRepeating(task)}>停止后续重复</button>}<button className="danger" onClick={() => { if (window.confirm(`确认删除“${task.title}”？`)) setTasks((current) => current.filter((item) => item.id !== task.id)); setMenu(null); }}>删除任务</button></div>; })()}
 
     {(editing || newDefaults) && <div className="personal-modal-bg"><form className="personal-edit-modal" onSubmit={submitTask}><header><strong>{editing ? "修改个人任务" : "新建个人任务"}</strong><button type="button" onClick={() => { setEditing(null); setNewDefaults(null); }}>×</button></header><label>任务名称<input name="title" autoFocus required defaultValue={editing?.title || ""} placeholder="准备完成什么" /></label><div><label>成员<select name="owner" value={modalOwner} onChange={(event) => setModalOwner(event.target.value as Owner)}>{PEOPLE.map((person) => <option key={person.name}>{person.name}</option>)}</select></label><label>个人分类<select key={modalOwner} name="category" defaultValue={editing?.owner === modalOwner && categories[modalOwner].includes(editing.category) ? editing.category : categories[modalOwner][0]}>{categories[modalOwner].map((item) => <option key={item}>{item}</option>)}</select></label></div><label>安排日期<input name="due" type="date" value={modalDue} onChange={event => setModalDue(event.target.value)} /><small>留空则进入左侧待办</small></label><div className="personal-time-fields"><label>开始时间<input name="startTime" type="time" step="900" defaultValue={editing?.startTime || newDefaults?.startTime || "09:00"} /></label><label>结束时间<input name="endTime" type="time" step="900" defaultValue={editing?.endTime || newDefaults?.endTime || "10:00"} /></label></div>{editing?.seriesId ? <section className="personal-repeat-info"><strong>{editing.repeatRule ? repeatDescription(editing.repeatRule, editing.repeatDays) : "重复日程"} · 至 {editing.repeatUntil}</strong><p>保存时可选择修改本次或本次及以后。备注在整组重复日程中统一共享。</p><button type="button" onClick={() => stopRepeating(editing)}>停止后续重复</button></section> : <PersonalRepeatFields due={modalDue} />}{formError && <p className="personal-form-error" role="alert">{formError}</p>}<label>备注<textarea name="note" defaultValue={editing?.note || ""} placeholder="写下这项日程的备注（选填）" /></label><button className="save">保存</button></form></div>}
+    {planContext && <WeeklyPlanDialog key={`${planContext.owner}:${planContext.week}`} owner={planContext.owner} week={planContext.week} onClose={()=>setPlanContext(null)} />}
     {repeatChange && (() => { const task=tasks.find(item=>item.id===repeatChange.id); return task ? <PersonalRepeatScope title={task.title} date={task.due || ""} futureCount={tasks.filter(item=>laterOccurrence(item,task)).length} onChoose={confirmRepeatChange} onCancel={()=>setRepeatChange(null)} /> : null; })()}
   </section>;
 }

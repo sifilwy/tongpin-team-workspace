@@ -504,4 +504,52 @@ try {
   await page.locator('.personal-edit-modal .save').click();
   assert.deepEqual(await page.evaluate(()=>window.fixture['tongpin-personal-tasks-v3'].map(t=>t.note)),Array(4).fill(''));
   console.log('PASS: notes label, create/update/clear shared series note, completed occurrence editing, remount, no scope chooser for note-only edits');
+  await page.evaluate(()=>{
+    window.weekPlanDocs={};window.weekPlanFail=false;window.weekPlanConflict=false;
+    window.fetch=async(url,options)=>{
+      const key=new URL(url,'https://fixture.test').searchParams.get('key');
+      if(options?.method==='POST'){
+        const body=JSON.parse(options.body);
+        if(window.weekPlanFail)return Response.json({error:'模拟保存失败'},{status:500});
+        if(window.weekPlanConflict){window.weekPlanConflict=false;const value=structuredClone(body.value);value.days[Object.keys(value.days)[2]]='其他页面补充的周三计划';window.weekPlanDocs[body.key]={revision:body.revision+1,value};return Response.json({document:window.weekPlanDocs[body.key]},{status:409});}
+        window.weekPlanDocs[body.key]={revision:body.revision+1,value:body.value};return Response.json({document:window.weekPlanDocs[body.key]});
+      }
+      return Response.json({document:window.weekPlanDocs[key]||null});
+    };
+  });
+  const toolbarOrder=await page.locator('.personal-top-actions>button').allTextContents();
+  assert.ok(toolbarOrder.indexOf('计划')>toolbarOrder.indexOf('查看全员') && toolbarOrder.indexOf('计划')<toolbarOrder.indexOf('＋ 添加'));
+  const selectedWeek=await page.locator('.personal-day-track').first().getAttribute('data-due');
+  await page.getByRole('button',{name:'计划',exact:true}).click();
+  const planDialog=page.getByRole('dialog',{name:'每周计划',exact:true});
+  await planDialog.getByRole('textbox',{name:'本周计划',exact:true}).fill('本周集中完成课程');
+  await planDialog.getByRole('textbox',{name:'周一计划',exact:true}).fill('准备第一节课');
+  await planDialog.getByRole('textbox',{name:'本周总结',exact:true}).fill('记录本周收获');
+  await page.evaluate(()=>window.weekPlanConflict=true);
+  await planDialog.getByRole('button',{name:'关闭计划',exact:true}).click();
+  await planDialog.waitFor({state:'hidden'});
+  await page.getByRole('button',{name:'计划',exact:true}).click();
+  assert.equal(await planDialog.getByRole('textbox',{name:'本周计划',exact:true}).inputValue(),'本周集中完成课程');
+  assert.equal(await planDialog.getByRole('textbox',{name:'周三计划',exact:true}).inputValue(),'其他页面补充的周三计划');
+  await planDialog.getByRole('button',{name:'关闭计划',exact:true}).click();
+  await page.getByRole('button',{name:'下一周',exact:true}).click();
+  await page.getByRole('button',{name:'计划',exact:true}).click();
+  await planDialog.getByRole('textbox',{name:'本周计划',exact:true}).fill('下一周的新计划');
+  await planDialog.getByRole('button',{name:'关闭计划',exact:true}).click();await planDialog.waitFor({state:'hidden'});
+  await page.getByRole('button',{name:'上一周',exact:true}).click();
+  await page.getByRole('button',{name:'计划',exact:true}).click();
+  assert.equal(await planDialog.getByRole('textbox',{name:'本周计划',exact:true}).inputValue(),'本周集中完成课程');
+  await planDialog.getByRole('textbox',{name:'周二计划',exact:true}).fill('离线时保留输入');
+  await page.evaluate(()=>window.weekPlanFail=true);
+  await planDialog.getByRole('button',{name:'关闭计划',exact:true}).click();
+  await planDialog.getByRole('alert').waitFor();
+  assert.equal(await planDialog.getByRole('textbox',{name:'周二计划',exact:true}).inputValue(),'离线时保留输入');
+  await page.evaluate(()=>window.weekPlanFail=false);
+  await planDialog.getByRole('button',{name:'关闭计划',exact:true}).click();await planDialog.waitFor({state:'hidden'});
+  await page.locator('.personal-segment').getByRole('button',{name:'czl',exact:true}).click();
+  await page.getByRole('button',{name:'计划',exact:true}).click();
+  await planDialog.getByRole('textbox',{name:'本周计划',exact:true}).fill('czl 单独的计划');
+  await planDialog.getByRole('button',{name:'关闭计划',exact:true}).click();await planDialog.waitFor({state:'hidden'});
+  assert.equal(await page.evaluate(week=>window.weekPlanDocs[`tongpin-week-plan-v1:xzx:${week}`].value.weekly,selectedWeek),'本周集中完成课程');
+  console.log('PASS: plan toolbar placement, editable week/day/summary modal, close/reopen save, separate weeks and members, CAS merge, failed close preserves draft and retry');
 } finally { await browser.close(); }
