@@ -20,7 +20,7 @@ test('weekly plans persist separately across weeks and members with revision pro
  await handleTeam(new Request('http://localhost/api/team'));
  const codes=JSON.parse(readFileSync(join(directory,'invitations.json'),'utf8'));
  const login=await call({action:'login',code:codes.xzx});const cookie=login.headers.get('set-cookie').split(';')[0];
- const key=weekPlanKey('xzx','2026-09-07');const value={...emptyWeekPlan('2026-09-07'),weekly:'这周的计划',ballWeekly:'皮球这周的计划',summary:'这周的总结'};
+ const key=weekPlanKey('xzx','2026-09-07');const value={...emptyWeekPlan('2026-09-07'),weekly:'这周的计划',ballWeekly:'皮球这周的计划',summary:'这周的总结',ballSummary:'皮球总结',ballDays:{...emptyWeekPlan('2026-09-07').days,'2026-09-07':'皮球周一记录'}};
  assert.equal((await call({key,revision:0,value},cookie)).status,200);
  assert.equal((await call({key,revision:0,value},cookie)).status,409);
  for(const other of [weekPlanKey('xzx','2026-09-14'),weekPlanKey('czl','2026-09-07')]){

@@ -545,11 +545,13 @@ try {
   await planDialog.getByRole('button',{name:'皮球',exact:true}).click();
   assert.equal(await planDialog.getByRole('textbox',{name:'本周计划',exact:true}).inputValue(),'');
   await planDialog.getByRole('textbox',{name:'本周计划',exact:true}).fill('皮球本周安排');
-  assert.equal(await planDialog.getByRole('textbox',{name:'周二计划',exact:true}).inputValue(),'周二的草稿');
-  await planDialog.getByRole('textbox',{name:'周二计划',exact:true}).fill('共同的周二记录');
+  assert.equal(await planDialog.getByRole('textbox',{name:'周二计划',exact:true}).inputValue(),'');
+  assert.equal(await planDialog.getByRole('textbox',{name:'本周总结',exact:true}).inputValue(),'');
+  await planDialog.getByRole('textbox',{name:'周二计划',exact:true}).fill('皮球的周二记录');
+  await planDialog.getByRole('textbox',{name:'本周总结',exact:true}).fill('皮球的本周总结');
   await planDialog.getByRole('button',{name:'独立',exact:true}).click();
   assert.equal(await planDialog.getByRole('textbox',{name:'本周计划',exact:true}).inputValue(),'本周集中完成课程');
-  assert.equal(await planDialog.getByRole('textbox',{name:'周二计划',exact:true}).inputValue(),'共同的周二记录');
+  assert.equal(await planDialog.getByRole('textbox',{name:'周二计划',exact:true}).inputValue(),'周二的草稿');
   assert.equal(await planDialog.getByRole('textbox',{name:'本周总结',exact:true}).inputValue(),'记录本周收获');
   await page.evaluate(()=>window.weekPlanConflict=true);
   await planDialog.getByRole('button',{name:'关闭计划',exact:true}).click();
@@ -561,7 +563,9 @@ try {
   await planDialog.getByRole('button',{name:'皮球',exact:true}).click();
   assert.equal(await planDialog.getByRole('textbox',{name:'本周计划',exact:true}).inputValue(),'皮球本周安排');
   await planDialog.getByRole('tab',{name:'周二'}).click();
-  assert.equal(await planDialog.getByRole('textbox',{name:'周二计划',exact:true}).inputValue(),'共同的周二记录');
+  assert.equal(await planDialog.getByRole('textbox',{name:'周二计划',exact:true}).inputValue(),'皮球的周二记录');
+  await planDialog.locator('summary').click();
+  assert.equal(await planDialog.getByRole('textbox',{name:'本周总结',exact:true}).inputValue(),'皮球的本周总结');
   await planDialog.getByRole('button',{name:'关闭计划',exact:true}).click();
   await page.getByRole('button',{name:'下一周',exact:true}).click();
   await page.getByRole('button',{name:'计划',exact:true}).click();

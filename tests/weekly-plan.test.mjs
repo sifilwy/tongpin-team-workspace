@@ -35,3 +35,21 @@ test('tagged plans accept legacy data and merge independent category edits witho
  assert.equal(validWeekPlan({...base,ballWeekly:'x'.repeat(10001)},week),false);
  assert.equal(validWeekPlan({...base,ballWeekly:null},week),false);
 });
+
+test('daily records and weekly summaries are separate per tag and merge concurrent edits',()=>{
+ const week='2026-09-07';const blank=emptyWeekPlan(week);
+ const base={...blank,summary:'原有共用总结',days:{...blank.days,[week]:'原有共用记录'},ballWeekly:'原有皮球计划'};
+ const draft={...base,ballDays:{...blank.days,[week]:'皮球周一'},ballSummary:'皮球本周总结'};
+ const latest={...base,summary:'独立新总结',ballDays:{...blank.days,'2026-09-08':'其他页面皮球周二'}};
+ assert.ok(validWeekPlan(draft,week));
+ const result=mergeWeekPlan(base,draft,latest);
+ assert.equal(result.days[week],'原有共用记录');assert.equal(result.summary,'独立新总结');
+ assert.equal(result.ballDays[week],'皮球周一');assert.equal(result.ballDays['2026-09-08'],'其他页面皮球周二');
+ assert.equal(result.ballWeekly,'原有皮球计划');assert.equal(result.ballSummary,'皮球本周总结');
+ const cleared=mergeWeekPlan(result,{...result,ballSummary:'',ballDays:{...result.ballDays,[week]:''}},result);
+ assert.equal(cleared.ballDays[week],'');assert.equal(cleared.ballSummary,'');assert.equal(cleared.days[week],'原有共用记录');
+ assert.deepEqual(mergeWeekPlan(base,{...base,weekly:'独立修改'},result).ballDays,result.ballDays);
+ assert.equal(validWeekPlan({...draft,ballSummary:'x'.repeat(10001)},week),false);
+ assert.equal(validWeekPlan({...draft,ballDays:{[week]:'缺失日期'}},week),false);
+ assert.equal(validWeekPlan({...draft,ballDays:{...blank.days,[week]:'x'.repeat(10001)}},week),false);
+});

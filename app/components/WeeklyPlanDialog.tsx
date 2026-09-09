@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { emptyWeekPlan, mergeWeekPlan, validWeekPlan, weekPlanDates, weekPlanKey } from "../lib/weekly-plan.mjs";
 import "../weekly-plan.css";
 
-type Plan = {weekly:string;ballWeekly?:string;summary:string;days:Record<string,string>};
+type Plan = {weekly:string;ballWeekly?:string;summary:string;ballSummary?:string;days:Record<string,string>;ballDays?:Record<string,string>};
 type Document = {revision:number;value:Plan};
 const weekdays=['周一','周二','周三','周四','周五','周六','周日'];
 export default function WeeklyPlanDialog({ owner, week, pending=[], categories, onAddPending, onClose }: {owner:string;week:string;pending?:{id:number;title:string;category:string}[];categories:string[];onAddPending:(title:string,category:string)=>void;onClose:()=>void}) {
@@ -18,6 +18,8 @@ export default function WeeklyPlanDialog({ owner, week, pending=[], categories, 
   const [retry,setRetry]=useState(0);
   const [selectedDay,setSelectedDay]=useState(0);
   const [category,setCategory]=useState<'independent'|'ball'>('independent');
+  const dayNotes=category==='ball' ? draft.ballDays || emptyWeekPlan(week).days : draft.days;
+  const summaryText=category==='ball' ? draft.ballSummary || '' : draft.summary;
   const [addingPending,setAddingPending]=useState(false);
   const [pendingTitle,setPendingTitle]=useState('');
   const [pendingCategory,setPendingCategory]=useState(categories[0] || '独立');
@@ -102,12 +104,12 @@ export default function WeeklyPlanDialog({ owner, week, pending=[], categories, 
           <div className="weekly-plan-tabs" role="tablist" aria-label="选择星期">{dates.map((date,index)=><button key={date} id={`plan-day-${index}`} type="button" role="tab" aria-selected={selectedDay===index} aria-controls="plan-day-panel" tabIndex={selectedDay===index?0:-1} onClick={()=>setSelectedDay(index)} onKeyDown={event=>{
             const next=event.key==='ArrowRight'?(index+1)%7:event.key==='ArrowLeft'?(index+6)%7:event.key==='Home'?0:event.key==='End'?6:null;
             if(next!==null){event.preventDefault();setSelectedDay(next);dialog.current?.querySelector<HTMLButtonElement>(`#plan-day-${next}`)?.focus();}
-          }}>{weekdays[index]}<span className={draft.days[date]?.trim()?'has-plan':''} aria-label={draft.days[date]?.trim()?'已填写':undefined} /></button>)}</div>
+          }}>{weekdays[index]}<span className={dayNotes[date]?.trim()?'has-plan':''} aria-label={dayNotes[date]?.trim()?'已填写':undefined} /></button>)}</div>
           <div id="plan-day-panel" role="tabpanel" aria-labelledby={`plan-day-${selectedDay}`} className="weekly-plan-day">
             <time dateTime={dates[selectedDay]}>{dates[selectedDay]}</time>
-            <textarea aria-label={`${weekdays[selectedDay]}计划`} rows={5} maxLength={10000} value={draft.days[dates[selectedDay]] || ''} onChange={event=>setDraft({...draft,days:{...draft.days,[dates[selectedDay]]:event.target.value}})} placeholder={`写下${weekdays[selectedDay]}的计划，记录，总结`} />
+            <textarea aria-label={`${weekdays[selectedDay]}计划`} rows={5} maxLength={10000} value={dayNotes[dates[selectedDay]] || ''} onChange={event=>setDraft({...draft,[category==='ball'?'ballDays':'days']:{...dayNotes,[dates[selectedDay]]:event.target.value}})} placeholder={`写下${weekdays[selectedDay]}的计划，记录，总结`} />
           </div>
-          <details className="weekly-plan-summary"><summary>本周总结<span>{draft.summary.trim()?'已填写':'展开'}</span></summary><textarea aria-label="本周总结" rows={3} maxLength={10000} value={draft.summary} onChange={event=>setDraft({...draft,summary:event.target.value})} placeholder="记录本周的收获和改进…" /></details>
+          <details className="weekly-plan-summary"><summary>本周总结<span>{summaryText.trim()?'已填写':'展开'}</span></summary><textarea aria-label="本周总结" rows={3} maxLength={10000} value={summaryText} onChange={event=>setDraft({...draft,[category==='ball'?'ballSummary':'summary']:event.target.value})} placeholder="记录本周的收获和改进…" /></details>
         </fieldset>
       </div>
       </div>

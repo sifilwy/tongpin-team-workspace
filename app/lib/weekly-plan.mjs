@@ -11,11 +11,13 @@ export function weekPlanDates(week) {
 }
 export const emptyWeekPlan = week => ({weekly:'',summary:'',days:Object.fromEntries(weekPlanDates(week).map(date=>[date,'']))});
 export function validWeekPlan(value, week) {
-  if(!value || Array.isArray(value) || typeof value!=='object' || Object.keys(value).some(key=>!['weekly','summary','days','ballWeekly'].includes(key))) return false;
+  if(!value || Array.isArray(value) || typeof value!=='object' || Object.keys(value).some(key=>!['weekly','summary','days','ballWeekly','ballDays','ballSummary'].includes(key))) return false;
   const text=value=>typeof value==='string' && value.length<=10000;
   if(Object.hasOwn(value,'ballWeekly') && !text(value.ballWeekly)) return false;
+  if(Object.hasOwn(value,'ballSummary') && !text(value.ballSummary)) return false;
   if(!text(value.weekly) || !text(value.summary) || !value.days || Array.isArray(value.days) || typeof value.days!=='object') return false;
   const dates=weekPlanDates(week);
+  if(Object.hasOwn(value,'ballDays') && (!value.ballDays || Array.isArray(value.ballDays) || typeof value.ballDays!=='object' || Object.keys(value.ballDays).length!==7 || !dates.every(date=>text(value.ballDays[date])))) return false;
   return Object.keys(value.days).length===7 && dates.every(date=>text(value.days[date]));
 }
 export function mergeWeekPlan(base, draft, latest) {
@@ -24,5 +26,7 @@ export function mergeWeekPlan(base, draft, latest) {
     summary:draft.summary===base.summary ? latest.summary : draft.summary,
     days:Object.fromEntries(Object.keys(draft.days).map(date=>[date,draft.days[date]===base.days[date] ? latest.days[date] : draft.days[date]])),
     ...(Object.hasOwn(draft,'ballWeekly') || Object.hasOwn(latest,'ballWeekly') ? {ballWeekly:(draft.ballWeekly || '')===(base.ballWeekly || '') ? latest.ballWeekly || '' : draft.ballWeekly || ''}:{}),
+    ...(Object.hasOwn(draft,'ballSummary') || Object.hasOwn(latest,'ballSummary') ? {ballSummary:(draft.ballSummary || '')===(base.ballSummary || '') ? latest.ballSummary || '' : draft.ballSummary || ''}:{}),
+    ...(draft.ballDays || latest.ballDays ? {ballDays:Object.fromEntries(Object.keys(draft.days).map(date=>[date,(draft.ballDays?.[date] || '')===(base.ballDays?.[date] || '') ? latest.ballDays?.[date] || '' : draft.ballDays?.[date] || '']))}:{}),
   };
 }
