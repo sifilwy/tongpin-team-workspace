@@ -5,6 +5,7 @@ import "../weekly-plan.css";
 
 type Plan = {weekly:string;summary:string;days:Record<string,string>};
 type Document = {revision:number;value:Plan};
+const weekdays=['周一','周二','周三','周四','周五','周六','周日'];
 export default function WeeklyPlanDialog({ owner, week, onClose }: {owner:string;week:string;onClose:()=>void}) {
   const key=weekPlanKey(owner,week);
   const dates=weekPlanDates(week);
@@ -15,6 +16,7 @@ export default function WeeklyPlanDialog({ owner, week, onClose }: {owner:string
   const [error,setError]=useState("");
   const [notice,setNotice]=useState("");
   const [retry,setRetry]=useState(0);
+  const [selectedDay,setSelectedDay]=useState(0);
   const dialog=useRef<HTMLDialogElement>(null);
   const guard=useRef({mounted:false,busy:false,abort:new AbortController()});
   const dirty=JSON.stringify(base)!==JSON.stringify(draft);
@@ -64,18 +66,24 @@ export default function WeeklyPlanDialog({ owner, week, onClose }: {owner:string
   }
   return <dialog ref={dialog} className="weekly-plan-dialog" aria-label="每周计划" onCancel={event=>{event.preventDefault();void save(true);}}>
     <form onSubmit={event=>{event.preventDefault();void save();}}>
-      <header><div><span>{owner} · {week} — {dates[6]}</span><h2>计划</h2></div><button type="button" aria-label="关闭计划" disabled={busy} onClick={()=>void save(true)}>×</button></header>
+      <header><div><h2>每周计划</h2><span>{owner} · {week} — {dates[6]}</span></div><button type="button" aria-label="关闭计划" disabled={busy} onClick={()=>void save(true)}>×</button></header>
       <div className="weekly-plan-body">
-        <p className="weekly-plan-hint">按周保存。关闭后可继续编辑，切换周可查看那一周的记录。</p>
         {error && <div className="weekly-plan-error" role="alert">{error}{!ready && <button type="button" onClick={()=>setRetry(value=>value+1)}>重新读取</button>}</div>}
         {!ready && !error && <p role="status">正在读取本周计划…</p>}
         <fieldset disabled={!ready || busy}>
-          <label className="weekly-plan-section">本周计划<textarea aria-label="本周计划" rows={4} maxLength={10000} value={draft.weekly} onChange={event=>setDraft({...draft,weekly:event.target.value})} placeholder="这一周想完成什么？写下重点和安排。" /></label>
-          <h3>每天计划</h3><div className="weekly-plan-days">{dates.map((date,index)=><label key={date}><span>{['周一','周二','周三','周四','周五','周六','周日'][index]}<time>{date.slice(5).replace('-',' / ')}</time></span><textarea aria-label={`${['周一','周二','周三','周四','周五','周六','周日'][index]}计划`} rows={3} maxLength={10000} value={draft.days[date] || ''} onChange={event=>setDraft({...draft,days:{...draft.days,[date]:event.target.value}})} placeholder="这一天的计划…" /></label>)}</div>
-          <label className="weekly-plan-section">本周总结<textarea aria-label="本周总结" rows={4} maxLength={10000} value={draft.summary} onChange={event=>setDraft({...draft,summary:event.target.value})} placeholder="完成了什么？有哪些收获，下一周想怎样调整？" /></label>
+          <textarea className="weekly-plan-overview" aria-label="本周计划" rows={3} maxLength={10000} value={draft.weekly} onChange={event=>setDraft({...draft,weekly:event.target.value})} placeholder="写下这一周的重点和安排…" />
+          <div className="weekly-plan-tabs" role="tablist" aria-label="选择星期">{dates.map((date,index)=><button key={date} id={`plan-day-${index}`} type="button" role="tab" aria-selected={selectedDay===index} aria-controls="plan-day-panel" tabIndex={selectedDay===index?0:-1} onClick={()=>setSelectedDay(index)} onKeyDown={event=>{
+            const next=event.key==='ArrowRight'?(index+1)%7:event.key==='ArrowLeft'?(index+6)%7:event.key==='Home'?0:event.key==='End'?6:null;
+            if(next!==null){event.preventDefault();setSelectedDay(next);dialog.current?.querySelector<HTMLButtonElement>(`#plan-day-${next}`)?.focus();}
+          }}>{weekdays[index]}<span className={draft.days[date]?.trim()?'has-plan':''} aria-label={draft.days[date]?.trim()?'已填写':undefined} /></button>)}</div>
+          <div id="plan-day-panel" role="tabpanel" aria-labelledby={`plan-day-${selectedDay}`} className="weekly-plan-day">
+            <time dateTime={dates[selectedDay]}>{dates[selectedDay]}</time>
+            <textarea aria-label={`${weekdays[selectedDay]}计划`} rows={5} maxLength={10000} value={draft.days[dates[selectedDay]] || ''} onChange={event=>setDraft({...draft,days:{...draft.days,[dates[selectedDay]]:event.target.value}})} placeholder={`写下${weekdays[selectedDay]}的计划…`} />
+          </div>
+          <details className="weekly-plan-summary"><summary>本周总结<span>{draft.summary.trim()?'已填写':'展开'}</span></summary><textarea aria-label="本周总结" rows={3} maxLength={10000} value={draft.summary} onChange={event=>setDraft({...draft,summary:event.target.value})} placeholder="记录本周的收获和改进…" /></details>
         </fieldset>
       </div>
-      <footer><span role="status">{busy?'正在保存…':dirty?'有未保存内容 · 关闭时会保存':notice || '内容按成员和周分别保存'}</span><button type="submit" disabled={!ready || busy || !dirty}>{busy?'保存中…':'保存'}</button><button type="button" disabled={busy} onClick={()=>void save(true)}>关闭</button></footer>
+      <footer><span role="status">{busy?'正在保存…':dirty?'关闭时保存':notice || '按周保存'}</span><button type="submit" disabled={!ready || busy || !dirty}>{busy?'保存中…':'保存'}</button><button type="button" disabled={busy} onClick={()=>void save(true)}>关闭</button></footer>
     </form>
   </dialog>;
 }
