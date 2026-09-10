@@ -1,3 +1,17 @@
+.personal-calendar{grid-template-columns:repeat(var(--calendar-days,7),minmax(0,1fr));min-width:calc(var(--calendar-days,7)*100px)}
+.personal-date,.personal-time-axis{grid-template-rows:48px 1140px}
+.personal-date>header b{width:auto;min-width:25px;padding:0 4px;border-radius:8px}
+.personal-date>header,.personal-time-axis>header{z-index:9}
+.personal-time-axis span{right:4px;white-space:nowrap}
+.personal-time-axis span:last-child{transform:translateY(-100%)}
+.personal-day-track{background:repeating-linear-gradient(to bottom,transparent 0,transparent 59px,#efede9 60px)}
+.personal-top-actions{flex-wrap:wrap;justify-content:flex-end}
+.personal-view-select{padding:8px;border:1px solid #e4e0d8;border-radius:8px;background:#fff;color:#646978;font-size:10px;cursor:pointer}
+.personal-now-line{position:absolute;left:0;right:0;z-index:5;height:1px;background:rgba(132,111,193,.6);pointer-events:none}
+.personal-now-line:before{content:"";position:absolute;left:-3px;top:-2px;width:5px;height:5px;border-radius:50%;background:#a08bcd}
+.personal-now-line>span{position:absolute;right:4px;bottom:3px;padding:1px 4px;border-radius:4px;background:rgba(250,248,255,.94);color:#9680ba;font-size:8px;line-height:1.4;white-space:nowrap}
+.personal-overnight-hint{margin:6px 0 0;color:#92909e;font-size:10px;line-height:1.5}
+@media(max-width:950px){.personal-calendar{min-width:calc(var(--calendar-days,7)*116px)}}
 .personal-pending-toggle{
   width:100%;
   display:flex;
