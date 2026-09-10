@@ -2,11 +2,12 @@
 import { useEffect, useRef, useState } from "react";
 import { emptyWeekPlan, mergeWeekPlan, validWeekPlan, weekPlanDates, weekPlanKey } from "../lib/weekly-plan.mjs";
 import "../weekly-plan.css";
+import PlanPendingEditor, {type PlanPendingTask} from './PlanPendingEditor';
 
 type Plan = {weekly:string;ballWeekly?:string;summary:string;ballSummary?:string;days:Record<string,string>;ballDays?:Record<string,string>};
 type Document = {revision:number;value:Plan};
 const weekdays=['周一','周二','周三','周四','周五','周六','周日'];
-export default function WeeklyPlanDialog({ owner, week, pending=[], onAddPending, onClose }: {owner:string;week:string;pending?:{id:number;title:string;category:string}[];onAddPending:(title:string,category:string)=>void;onClose:()=>void}) {
+export default function WeeklyPlanDialog({ owner, week, pending=[], onAddPending, onEditPending, onClose }: {owner:string;week:string;pending?:PlanPendingTask[];onAddPending:(title:string,category:string)=>void;onEditPending:(id:number,patch:Partial<Pick<PlanPendingTask,'title'|'category'|'note'>>)=>void;onClose:()=>void}) {
   const key=weekPlanKey(owner,week);
   const dates=weekPlanDates(week);
   const [base,setBase]=useState<Plan>(()=>emptyWeekPlan(week));
@@ -23,6 +24,7 @@ export default function WeeklyPlanDialog({ owner, week, pending=[], onAddPending
   const dayNotes=category==='ball' ? draft.ballDays || emptyWeekPlan(week).days : draft.days;
   const summaryText=category==='ball' ? draft.ballSummary || '' : draft.summary;
   const [addingPending,setAddingPending]=useState(false);
+  const [editingPending,setEditingPending]=useState<PlanPendingTask|null>(null);
   const [pendingTitles,setPendingTitles]=useState({independent:'',ball:''});
   const pendingTitle=pendingTitles[category];
   const setPendingTitle=(title:string)=>setPendingTitles(current=>({...current,[category]:title}));
@@ -94,7 +96,7 @@ export default function WeeklyPlanDialog({ owner, week, pending=[], onAddPending
           <small>添加到{categoryName}</small>
           <div><button type="button" disabled={!pendingTitle.trim() || busy} onClick={addPending}>添加</button><button type="button" onClick={()=>{setPendingTitle('');setAddingPending(false);}}>取消</button></div>
         </div>}
-        {visiblePending.length ? <ul>{visiblePending.map(task=><li key={task.id}><strong>{task.title}</strong><small>{task.category}</small></li>)}</ul> : <p>暂无{categoryName}待安排任务</p>}
+        {visiblePending.length ? <ul>{visiblePending.map(task=><li key={task.id}><button type="button" className="weekly-plan-pending-task" aria-label={`编辑待安排：${task.title}`} title="点击编辑" onClick={()=>setEditingPending({...task})}><strong>{task.title}</strong><small>{task.category}<span>编辑</span></small>{task.note && <p>{task.note}</p>}</button></li>)}</ul> : <p>暂无{categoryName}待安排任务</p>}
       </aside>
       <div className="weekly-plan-body">
         {error && <div className="weekly-plan-error" role="alert">{error}{!ready && <button type="button" onClick={()=>setRetry(value=>value+1)}>重新读取</button>}</div>}
@@ -119,5 +121,6 @@ export default function WeeklyPlanDialog({ owner, week, pending=[], onAddPending
       </div>
       <footer><span role="status">{busy?'正在保存…':dirty?'关闭时保存':notice || '按周保存'}</span><button type="submit" disabled={!ready || busy || !dirty}>{busy?'保存中…':'保存'}</button><button type="button" disabled={busy} onClick={()=>void save(true)}>关闭</button></footer>
     </form>
+    {editingPending && <PlanPendingEditor task={editingPending} onSave={onEditPending} onClose={()=>setEditingPending(null)} />}
   </dialog>;
 }

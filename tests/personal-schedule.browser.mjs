@@ -611,4 +611,25 @@ try {
   const sidebarAdded=await page.evaluate(()=>window.fixture['tongpin-personal-tasks-v3'].find(task=>task.title==='正常日程左侧新增任务'));
   assert.equal(sidebarAdded.owner,'xzx');assert.equal(sidebarAdded.category,'蓝色学习');assert.equal(sidebarAdded.due,null);
   console.log('PASS: normal schedule pending add button defaults to the selected member/category and creates an unscheduled task');
+  await page.getByRole('button',{name:'计划',exact:true}).click();
+  await planDialog.getByRole('textbox',{name:'本周计划',exact:true}).fill('编辑待安排时保留的计划草稿');
+  await planDialog.getByRole('button',{name:'编辑待安排：计划里新增的待办',exact:true}).click();
+  const pendingEdit=page.getByRole('dialog',{name:'编辑待安排任务',exact:true});
+  await pendingEdit.getByRole('textbox',{name:'任务名称',exact:true}).fill('修改后的待安排');
+  await pendingEdit.getByRole('combobox',{name:'任务分类',exact:true}).selectOption('皮球');
+  await pendingEdit.getByRole('textbox',{name:'任务备注',exact:true}).fill('第一行备注\n第二行备注');
+  await pendingEdit.getByRole('button',{name:'保存修改',exact:true}).click();
+  await pendingEdit.waitFor({state:'hidden'});
+  assert.equal(await planDialog.getByRole('textbox',{name:'本周计划',exact:true}).inputValue(),'编辑待安排时保留的计划草稿');
+  assert.equal(await planDialog.getByRole('button',{name:'编辑待安排：修改后的待安排',exact:true}).count(),0);
+  await planDialog.getByRole('button',{name:'皮球',exact:true}).click();
+  await planDialog.getByRole('button',{name:'编辑待安排：修改后的待安排',exact:true}).click();
+  assert.equal(await pendingEdit.getByRole('textbox',{name:'任务备注',exact:true}).inputValue(),'第一行备注\n第二行备注');
+  await pendingEdit.getByRole('textbox',{name:'任务名称',exact:true}).fill('取消的修改');
+  await page.keyboard.press('Escape');
+  await pendingEdit.waitFor({state:'hidden'});
+  assert.equal(await planDialog.isVisible(),true);
+  assert.equal(await page.evaluate(()=>window.fixture['tongpin-personal-tasks-v3'].some(task=>task.title==='取消的修改')),false);
+  await planDialog.getByRole('button',{name:'关闭计划',exact:true}).click();
+  console.log('PASS: edit pending title/category/notes inside plan, move between tags, keep plan draft, reopen edits and cancel child dialog only');
 } finally { await browser.close(); }
