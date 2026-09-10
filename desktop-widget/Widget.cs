@@ -66,6 +66,7 @@ sealed class Widget : Form
     Rectangle desired;
     string renderHealth = "starting";
     bool probing;
+    int websiteRequests;
     readonly JavaScriptSerializer json = new JavaScriptSerializer();
 
     public Widget(bool verification, string code, EventWaitHandle reveal, EventWaitHandle exitForUpdate)
@@ -130,6 +131,7 @@ sealed class Widget : Form
         bubbleWindow.Controls.Add(bubble);
         using (var circle = new GraphicsPath()) { circle.AddEllipse(bubbleWindow.ClientRectangle); bubbleWindow.Region = new Region(circle); }
         menu.Items.Add("展开日程", null, delegate { Reveal(); });
+        menu.Items.Add("打开网站", null, delegate { OpenWebsite(); });
         menu.Items.Add("收起为小圆点", null, delegate { Collapse(); });
         menu.Items.Add("刷新日程", null, delegate { if (browser.CoreWebView2 != null) browser.Reload(); });
         menu.Items.Add("恢复右侧位置", null, delegate { ResetPosition(); });
@@ -325,7 +327,11 @@ sealed class Widget : Form
             core.Settings.IsPasswordAutosaveEnabled = false;
             core.Settings.IsGeneralAutofillEnabled = false;
             core.PermissionRequested += delegate(object sender, CoreWebView2PermissionRequestedEventArgs e) { e.State = CoreWebView2PermissionState.Deny; };
-            core.NewWindowRequested += delegate(object sender, CoreWebView2NewWindowRequestedEventArgs e) { e.Handled = true; /* Workspace editing is available in the user's normal browser. */ };
+            core.NewWindowRequested += delegate(object sender, CoreWebView2NewWindowRequestedEventArgs e) {
+                e.Handled = true;
+                Uri target;
+                if (e.IsUserInitiated && Uri.TryCreate(e.Uri, UriKind.Absolute, out target) && target.GetLeftPart(UriPartial.Authority) == Origin && target.AbsolutePath == "/") OpenWebsite();
+            };
             core.NavigationStarting += delegate(object sender, CoreWebView2NavigationStartingEventArgs e) { Uri uri; if (!Uri.TryCreate(e.Uri, UriKind.Absolute, out uri) || uri.Scheme != "https" || uri.Host != "yanxue-sync.top") e.Cancel = true; };
             core.ProcessFailed += delegate(object sender, CoreWebView2ProcessFailedEventArgs e) { renderHealth = "renderer-failed:" + e.ProcessFailedKind; status.Text = "页面已停止 · 菜单可刷新"; WriteStatus(renderHealth); if (e.ProcessFailedKind == CoreWebView2ProcessFailedKind.RenderProcessExited) BeginInvoke(new Action(RestoreRendering)); };
             core.WebMessageReceived += delegate(object sender, CoreWebView2WebMessageReceivedEventArgs e) {
@@ -338,6 +344,7 @@ sealed class Widget : Form
                 else if (command == "collapse") Collapse();
                 else if (command == "close") BeginInvoke(new Action(Close));
                 else if (command == "refresh") RestoreRendering();
+                else if (command == "website") OpenWebsite();
                 else if (command == "reset") ResetPosition();
             };
             using (var stream = System.Reflection.Assembly.GetExecutingAssembly().GetManifestResourceStream("WidgetUI"))
@@ -369,6 +376,13 @@ sealed class Widget : Form
             if (verify) { Environment.ExitCode = 1; Close(); }
         }
     }
+    void OpenWebsite()
+    {
+        // Open only this fixed HTTPS address, never a URL supplied by page data.
+        if (verify) { websiteRequests++; return; }
+        try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(Origin + "/") { UseShellExecute = true }); }
+        catch { tray.ShowBalloonTip(5000, "未能打开浏览器", "请在浏览器访问 https://yanxue-sync.top", ToolTipIcon.Info); }
+    }
     async Task SignIn(string code)
     {
         var jar = new CookieContainer();
@@ -399,6 +413,9 @@ sealed class Widget : Form
                 if (await browser.ExecuteScriptAsync("!!document.querySelector('.desk-sync') && document.querySelector('.desk-sync').textContent.includes('已同步')") == "true") { synced = true; break; }
             }
             if (!synced) throw new InvalidOperationException("Sync not ready");
+            await browser.ExecuteScriptAsync("document.getElementById('tongpin-widget-controls').shadowRoot.getElementById('website').click()");
+            await Task.Delay(350);
+            if (websiteRequests != 1 || browser.Source.AbsolutePath != "/desktop") throw new InvalidOperationException("Website button failed");
             bool independent = IsIndependentSurface(this) && !TopMost && !ShowInTaskbar && (Native.GetWindowLong(Handle, -20) & 0x40000) == 0;
             if (!independent) throw new InvalidOperationException("Window is not independent");
             Rectangle initialBounds = desired;
@@ -437,7 +454,7 @@ sealed class Widget : Form
             for (int i = 0; i < 40; i++) { await Task.Delay(500); if (await browser.ExecuteScriptAsync("!!document.querySelector('.desk-sync') && document.querySelector('.desk-sync').textContent.includes('已同步')") == "true") { restored = true; break; } }
             if (!restored) throw new InvalidOperationException("Repaint recovery failed");
             await CaptureHealthyPreview("recovered.png");
-            WriteStatus("verified:software-rendering,nonblack-preview,repaint-recovery,direct-drag,edge-resize,independent-window,no-taskbar-icons,https-sync,collapse-expand,close");
+            WriteStatus("verified:website-command,software-rendering,nonblack-preview,repaint-recovery,direct-drag,edge-resize,independent-window,no-taskbar-icons,https-sync,collapse-expand,close");
             try { await browser.ExecuteScriptAsync("document.getElementById('tongpin-widget-controls').shadowRoot.getElementById('close').click()"); } catch { if (!closing) throw; }
             await Task.Delay(300);
             if (!closing) throw new InvalidOperationException("Close button failed");
