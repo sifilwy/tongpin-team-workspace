@@ -41,6 +41,7 @@ export default function DesktopAgenda() {
       if (state.active) setSaving(null);
     }
   };
+  useEffect(()=>{const undone=(event:Event)=>{const detail=(event as CustomEvent).detail;if(detail.key==='tongpin-personal-tasks-v3')acceptDocument(detail.document);};window.addEventListener('tongpin-document-undone',undone);return()=>window.removeEventListener('tongpin-document-undone',undone);},[]);
   useEffect(() => {
     const state = sync.current;
     state.active = true; state.controller = new AbortController();

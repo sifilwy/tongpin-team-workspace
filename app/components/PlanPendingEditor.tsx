@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
+import UndoButton from './UndoButton';
 
 export type PlanPendingTask={id:number;title:string;category:string;note?:string};
 export default function PlanPendingEditor({task,onSave,onClose}:{task:PlanPendingTask;onSave:(id:number,patch:Partial<Pick<PlanPendingTask,'title'|'category'|'note'>>)=>void;onClose:()=>void}) {
@@ -36,7 +37,7 @@ export default function PlanPendingEditor({task,onSave,onClose}:{task:PlanPendin
         <label>备注<textarea aria-label="任务备注" rows={4} maxLength={10000} value={note} onChange={event=>setNote(event.target.value)} onCompositionStart={()=>setComposing(true)} onCompositionEnd={()=>setComposing(false)} placeholder="写下这项任务的备注" /></label>
         {error && <p className="weekly-plan-error" role="alert">{error}</p>}
       </div>
-      <footer><span>自动保存</span><button type="button" onClick={finish}>关闭</button></footer>
+      <footer><UndoButton beforeUndo={flush} hasDraft={dirty} onUndone={onClose} /><span>自动保存</span><button type="button" onClick={finish}>关闭</button></footer>
     </form>
   </dialog>;
 }

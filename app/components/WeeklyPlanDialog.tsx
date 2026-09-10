@@ -3,6 +3,8 @@ import { useEffect, useRef, useState } from "react";
 import { emptyWeekPlan, mergeWeekPlan, validWeekPlan, weekPlanDates, weekPlanKey } from "../lib/weekly-plan.mjs";
 import "../weekly-plan.css";
 import PlanPendingEditor, {type PlanPendingTask} from './PlanPendingEditor';
+import UndoButton from './UndoButton';
+import {rememberDocumentUndo} from '../lib/undo-history.mjs';
 
 type Plan = {weekly:string;ballWeekly?:string;summary:string;ballSummary?:string;days:Record<string,string>;ballDays?:Record<string,string>};
 type Document = {revision:number;value:Plan};
@@ -61,28 +63,31 @@ export default function WeeklyPlanDialog({ owner, week, pending=[], onAddPending
     void request().then(({document})=>{if(!cancelled){setBase(document.value);setDraft(document.value);setReady(true);setError("");}}).catch(failure=>{if(!cancelled)setError(failure.message);});
     return()=>{cancelled=true;};
   },[retry]);
+  useEffect(()=>{const undone=(event:Event)=>{const detail=(event as CustomEvent).detail;if(detail.key===key){setBase(detail.document.value);setDraft(detail.document.value);setNotice('已撤销');}};window.addEventListener('tongpin-document-undone',undone);return()=>window.removeEventListener('tongpin-document-undone',undone);},[key]);
   useEffect(()=>{
     if(!dirty && !hasPendingDraft)return;
     const warn=(event:BeforeUnloadEvent)=>{event.preventDefault();event.returnValue="";};
     window.addEventListener("beforeunload",warn);return()=>window.removeEventListener("beforeunload",warn);
   },[dirty,hasPendingDraft]);
   async function save(close=false) {
-    if(guard.current.busy)return;
+    if(guard.current.busy)return false;
     if(close && hasPendingDraft){if(!pendingTitle.trim())setCategory(category==='ball'?'independent':'ball');setAddingPending(true);setError('请先添加或取消左侧正在输入的任务');pendingInput.current?.focus();return;}
-    if(!ready || !dirty){if(close)onClose();return;}
+    if(!ready || !dirty){if(close)onClose();return !dirty;}
     guard.current.busy=true;setBusy(true);setError("");setNotice("");
     try {
       let {document}=await request();
       for(let attempt=0;attempt<4;attempt++) {
         const value=mergeWeekPlan(base,draft,document.value);
+        const before=document.value;
         const result=await request({revision:document.revision,value});document=result.document;
         if(!result.conflict){
+          rememberDocumentUndo(key,before,document.value);
           if(guard.current.mounted){setBase(document.value);setDraft(document.value);setNotice("已保存");if(close)onClose();}
-          return;
+          return true;
         }
       }
       throw new Error("其他页面正在更新，内容已保留，请再次保存");
-    } catch(failure) {if(guard.current.mounted)setError(`${(failure as Error).message}。输入仍保留在弹窗中。`);}
+    } catch(failure) {if(guard.current.mounted)setError(`${(failure as Error).message}。输入仍保留在弹窗中。`);return false;}
     finally {guard.current.busy=false;if(guard.current.mounted)setBusy(false);}
   }
   return <dialog ref={dialog} className="weekly-plan-dialog" aria-label="每周计划" onCancel={event=>{event.preventDefault();void save(true);}}>
@@ -119,7 +124,7 @@ export default function WeeklyPlanDialog({ owner, week, pending=[], onAddPending
         </fieldset>
       </div>
       </div>
-      <footer><span role="status">{busy?'正在保存…':dirty?'关闭时保存':notice || '按周保存'}</span><button type="submit" disabled={!ready || busy || !dirty}>{busy?'保存中…':'保存'}</button><button type="button" disabled={busy} onClick={()=>void save(true)}>关闭</button></footer>
+      <footer><span role="status">{busy?'正在保存…':dirty?'关闭时保存':notice || '按周保存'}</span><UndoButton beforeUndo={()=>save()} hasDraft={dirty} /><button type="submit" disabled={!ready || busy || !dirty}>{busy?'保存中…':'保存'}</button><button type="button" disabled={busy} onClick={()=>void save(true)}>关闭</button></footer>
     </form>
     {editingPending && <PlanPendingEditor task={editingPending} onSave={onEditPending} onClose={()=>setEditingPending(null)} />}
   </dialog>;

@@ -1,5 +1,6 @@
 "use client";
-import { useEffect, useRef, useState, type Dispatch, type SetStateAction } from "react";
+import { useCallback, useEffect, useRef, useState, type Dispatch, type SetStateAction } from "react";
+import {rememberUndo,forgetUndo,reverseChange} from './undo-history.mjs';
 const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
 // Apply only locally changed fields over the newest server snapshot.
 export function rebase(base: any, local: any, remote: any): any {
@@ -17,6 +18,16 @@ export function useSharedState<T>(key: string, initial: T | (() => T)): [T, Disp
   const [value, setValue] = useState(initial);
   const ref = useRef(value);
   ref.current = value;
+  const historyScope=useRef(Symbol(key));
+  const initializedRef=useRef(false);
+  const update=useCallback<Dispatch<SetStateAction<T>>>((action)=>{
+    const before=ref.current;const next=typeof action==='function'?(action as (current:T)=>T)(before):action;
+    if(same(before,next))return;
+    if(initializedRef.current){const old=structuredClone(before);const changed=structuredClone(next);rememberUndo(historyScope.current,()=>{
+      const restored=reverseChange(old,changed,ref.current);ref.current=restored;setValue(restored);
+    });}
+    ref.current=next;setValue(next);
+  },[]);
   useEffect(() => {
     let stopped = false;
     let baseline: T;
@@ -38,6 +49,7 @@ export function useSharedState<T>(key: string, initial: T | (() => T)): [T, Disp
             baseline = undefined as T;
           }
           initialized = true;
+          initializedRef.current=true;
         }
         const pending = ref.current;
         if (!same(pending, baseline)) {
@@ -60,6 +72,7 @@ export function useSharedState<T>(key: string, initial: T | (() => T)): [T, Disp
     const beforeUnload = (event: BeforeUnloadEvent) => { if (initialized && !same(ref.current, baseline)) { localStorage.setItem(key, JSON.stringify(ref.current)); event.preventDefault(); } };
     window.addEventListener("beforeunload", beforeUnload);
     return () => {
+      initializedRef.current=false;forgetUndo(historyScope.current);
       if (initialized && !same(ref.current, baseline)) {
         localStorage.setItem(key, JSON.stringify(ref.current));
         void fetch("/api/team", { method: "POST", keepalive: true, headers: { "Content-Type": "application/json" }, body: JSON.stringify({ key, revision, value: ref.current }) });
@@ -67,5 +80,5 @@ export function useSharedState<T>(key: string, initial: T | (() => T)): [T, Disp
       stopped = true; clearTimeout(timer); notice?.remove(); window.removeEventListener("beforeunload", beforeUnload);
     };
   }, [key]);
-  return [value, setValue];
+  return [value, update];
 }

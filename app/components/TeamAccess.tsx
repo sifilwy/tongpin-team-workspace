@@ -1,6 +1,7 @@
 "use client";
 import { createContext, useContext, useEffect, useState, type ReactNode, type FormEvent } from "react";
 import "../team-access.css";
+import UndoButton from './UndoButton';
 const Identity = createContext("xzx");
 export const useMember = () => useContext(Identity);
 export default function TeamAccess({ children }: { children: ReactNode }) {
@@ -16,5 +17,5 @@ export default function TeamAccess({ children }: { children: ReactNode }) {
   }
   if (loading) return <div className="team-access">正在连接工作台…</div>;
   if (!member) return <main className="team-access"><form onSubmit={login}><span className="access-mark">同</span><h1>同频工作台</h1><p>输入你的邀请码，进入团队。</p><label htmlFor="invite-code">成员邀请码</label><input id="invite-code" name="code" type="password" autoComplete="current-password" required autoFocus placeholder="粘贴邀请码" /><p role="alert">{error}</p><button disabled={busy}>{busy ? "正在进入…" : "进入工作台"}</button></form></main>;
-  return <Identity.Provider value={member}><div className="team-identity"><span>{member}</span><button onClick={async () => { await fetch("/api/team", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "logout" }) }); location.reload(); }}>退出</button></div>{children}</Identity.Provider>;
+  return <Identity.Provider value={member}><div className="team-identity"><span>{member}</span><button onClick={async () => { await fetch("/api/team", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "logout" }) }); location.reload(); }}>退出</button></div>{children}<UndoButton global /></Identity.Provider>;
 }

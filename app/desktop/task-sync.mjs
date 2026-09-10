@@ -1,4 +1,5 @@
 const key = 'tongpin-personal-tasks-v3';
+import {rememberDocumentUndo} from '../lib/undo-history.mjs';
 
 async function request(options, signal) {
   const response = await fetch(`/api/team?key=${key}`, {
@@ -37,6 +38,7 @@ export async function saveTaskDone(id, done, signal) {
     document = result.document;
     if (!result.conflict) {
       if (!document?.value.some(task => task?.id === id && task.owner === 'xzx' && task.done === done)) throw new Error('保存尚未确认，请刷新后重试');
+      rememberDocumentUndo(key,rows,document.value);
       return document;
     }
   }
