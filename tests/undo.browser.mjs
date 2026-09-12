@@ -32,21 +32,21 @@ try{
  await page.goto('http://undo.test/');await page.addScriptTag({content:output[0].code});
  const data=()=>page.locator('#data').textContent().then(JSON.parse);
  await page.waitForFunction(()=>document.querySelector('#data').textContent.includes('原名'));
- const undo=page.locator('.undo-global button');
- assert.equal(await undo.isDisabled(),true);
- await page.locator('#add').click();await undo.click();assert.equal((await data()).length,1);
+ const undo=async()=>{await page.locator('#add').focus();await page.keyboard.press('Control+z');};
+ assert.equal(await page.locator('[data-undo-button]').count(),0);
+ await page.locator('#add').click();await undo();assert.equal((await data()).length,1);
  await page.locator('#rename').click();
  await page.waitForResponse(response=>response.request().method()==='POST');
  doc={revision:doc.revision+1,value:doc.value.map(task=>({...task,note:'其他成员新增备注'}))};
  await page.waitForFunction(()=>document.querySelector('#data').textContent.includes('其他成员新增备注'));
- await undo.click();assert.equal((await data())[0].title,'原名');assert.equal((await data())[0].note,'其他成员新增备注');
+ await undo();assert.equal((await data())[0].title,'原名');assert.equal((await data())[0].note,'其他成员新增备注');
  await page.locator('#remove').click();assert.equal((await data()).length,0);
  await page.locator('#remove').focus();await page.keyboard.press('Control+z');assert.equal((await data()).length,1);
  await page.locator('#edit').click();const editor=page.getByRole('dialog',{name:'编辑待安排任务'});
  await editor.getByRole('textbox',{name:'任务名称',exact:true}).fill('自动保存的新名');
  await page.waitForFunction(()=>document.querySelector('#data').textContent.includes('自动保存的新名'));
- await editor.locator('[data-undo-button]').click();await editor.waitFor({state:'hidden'});assert.equal((await data())[0].title,'原名');
+ await editor.getByRole('button',{name:'关闭',exact:true}).focus();await page.keyboard.press('Control+z');await editor.waitFor({state:'hidden'});assert.equal((await data())[0].title,'原名');
  await page.locator('#edit').click();await editor.getByRole('textbox',{name:'任务名称',exact:true}).fill('尚未自动保存');
- await editor.locator('[data-undo-button]').click();await editor.waitFor({state:'hidden'});assert.equal((await data())[0].title,'原名');
+ await editor.getByRole('button',{name:'关闭',exact:true}).focus();await page.keyboard.press('Control+z');await editor.waitFor({state:'hidden'});assert.equal((await data())[0].title,'原名');
  console.log('PASS: real shared-state hook undo before/after sync, restore deletion, preserve remote note, Ctrl+Z, autosaved and pending editor changes');
 }finally{await browser.close();}

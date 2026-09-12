@@ -1,4 +1,5 @@
 .undo-control{display:inline-flex;align-items:center;gap:8px;flex-wrap:wrap}
+.undo-control[hidden]{display:none}
 .undo-control>button{padding:7px 12px;border:1px solid #dfd5ea;border-radius:8px;background:#fff;color:#80648f;font:inherit;font-size:12px;cursor:pointer}
 .undo-control>button:disabled{opacity:.4;cursor:default}
 .undo-control small{font-size:11px;color:#887695;max-width:240px}

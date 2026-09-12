@@ -12,8 +12,13 @@ const weekdays=['周一','周二','周三','周四','周五','周六','周日'];
 export default function WeeklyPlanDialog({ owner, week, pending=[], onAddPending, onEditPending, onClose }: {owner:string;week:string;pending?:PlanPendingTask[];onAddPending:(title:string,category:string)=>void;onEditPending:(id:number,patch:Partial<Pick<PlanPendingTask,'title'|'category'|'note'>>)=>void;onClose:()=>void}) {
   const key=weekPlanKey(owner,week);
   const dates=weekPlanDates(week);
-  const [base,setBase]=useState<Plan>(()=>emptyWeekPlan(week));
-  const [draft,setDraft]=useState<Plan>(()=>emptyWeekPlan(week));
+  const [base,setBaseState]=useState<Plan>(()=>emptyWeekPlan(week));
+  const [draft,setDraftState]=useState<Plan>(()=>emptyWeekPlan(week));
+  const baseRef=useRef(base),draftRef=useRef(draft);
+  function setBase(value:Plan){baseRef.current=value;setBaseState(value);}
+  function setDraft(value:Plan){draftRef.current=value;setDraftState(value);}
+  const inFlight=useRef<Promise<boolean>|null>(null);
+  const [composing,setComposing]=useState(false);
   const [ready,setReady]=useState(false);
   const [busy,setBusy]=useState(false);
   const [error,setError]=useState("");
@@ -69,30 +74,46 @@ export default function WeeklyPlanDialog({ owner, week, pending=[], onAddPending
     const warn=(event:BeforeUnloadEvent)=>{event.preventDefault();event.returnValue="";};
     window.addEventListener("beforeunload",warn);return()=>window.removeEventListener("beforeunload",warn);
   },[dirty,hasPendingDraft]);
-  async function save(close=false) {
-    if(guard.current.busy)return false;
-    if(close && hasPendingDraft){if(!pendingTitle.trim())setCategory(category==='ball'?'independent':'ball');setAddingPending(true);setError('请先添加或取消左侧正在输入的任务');pendingInput.current?.focus();return;}
-    if(!ready || !dirty){if(close)onClose();return !dirty;}
-    guard.current.busy=true;setBusy(true);setError("");setNotice("");
-    try {
-      let {document}=await request();
-      for(let attempt=0;attempt<4;attempt++) {
-        const value=mergeWeekPlan(base,draft,document.value);
-        const before=document.value;
-        const result=await request({revision:document.revision,value});document=result.document;
-        if(!result.conflict){
-          rememberDocumentUndo(key,before,document.value);
-          if(guard.current.mounted){setBase(document.value);setDraft(document.value);setNotice("已保存");if(close)onClose();}
-          return true;
+  async function save(close=false):Promise<boolean> {
+    if(composing)return false;
+    if(close && hasPendingDraft){if(!pendingTitle.trim())setCategory(category==='ball'?'independent':'ball');setAddingPending(true);setError('请先添加或取消左侧正在输入的任务');pendingInput.current?.focus();return false;}
+    if(inFlight.current){if(!await inFlight.current)return false;return save(close);}
+    const snapshot=draftRef.current,baseline=baseRef.current;
+    if(!ready || JSON.stringify(baseline)===JSON.stringify(snapshot)){if(close)onClose();return true;}
+    const persist=async()=>{
+      setBusy(true);setError('');setNotice('');
+      try {
+        let {document}=await request();
+        for(let attempt=0;attempt<4;attempt++) {
+          const value=mergeWeekPlan(baseline,snapshot,document.value);
+          const before=document.value;
+          const result=await request({revision:document.revision,value});document=result.document;
+          if(!result.conflict){
+            rememberDocumentUndo(key,before,document.value);
+            if(guard.current.mounted){
+              // Retain anything typed while this request was in flight.
+              const next=mergeWeekPlan(snapshot,draftRef.current,document.value);
+              setBase(document.value);setDraft(next);setNotice('已自动保存');
+            }
+            return true;
+          }
         }
-      }
-      throw new Error("其他页面正在更新，内容已保留，请再次保存");
-    } catch(failure) {if(guard.current.mounted)setError(`${(failure as Error).message}。输入仍保留在弹窗中。`);return false;}
-    finally {guard.current.busy=false;if(guard.current.mounted)setBusy(false);}
+        throw new Error('其他页面正在更新，请重试');
+      } catch(failure) {if(guard.current.mounted)setError((failure as Error).message+'。输入仍保留在弹窗中。');return false;}
+      finally {if(guard.current.mounted)setBusy(false);}
+    };
+    const operation=persist();inFlight.current=operation;
+    const saved=await operation;inFlight.current=null;
+    return saved && close ? save(true) : saved;
   }
+  useEffect(()=>{
+    if(!ready || !dirty || composing)return;
+    const timer=window.setTimeout(()=>void save(),600);
+    return()=>window.clearTimeout(timer);
+  },[draft,ready,composing]);
   return <dialog ref={dialog} className="weekly-plan-dialog" aria-label="每周计划" onCancel={event=>{event.preventDefault();void save(true);}}>
-    <form onSubmit={event=>{event.preventDefault();void save();}}>
-      <header><div><h2>每周计划</h2><span>{owner} · {week} — {dates[6]}</span></div><button type="button" aria-label="关闭计划" disabled={busy} onClick={()=>void save(true)}>×</button></header>
+    <form onSubmit={event=>{event.preventDefault();void save();}} onCompositionStart={()=>setComposing(true)} onCompositionEnd={()=>setComposing(false)}>
+      <header><div><h2>每周计划</h2><span>{owner} · {week} — {dates[6]}</span></div><button type="button" aria-label="关闭计划" onClick={()=>void save(true)}>×</button></header>
       <div className="weekly-plan-content">
       <aside className="weekly-plan-pending" aria-label="待安排">
         <div className="weekly-plan-pending-heading"><h3>{categoryName}待安排</h3><span>{visiblePending.length}</span><button type="button" className="weekly-plan-pending-add" aria-label="添加待安排任务" title="添加待安排任务" aria-expanded={addingPending} disabled={busy} onClick={()=>{if(!addingPending)setAddingPending(true);else pendingInput.current?.focus();}}>＋</button></div>
@@ -104,9 +125,9 @@ export default function WeeklyPlanDialog({ owner, week, pending=[], onAddPending
         {visiblePending.length ? <ul>{visiblePending.map(task=><li key={task.id}><button type="button" className="weekly-plan-pending-task" aria-label={`编辑待安排：${task.title}`} title="点击编辑" onClick={()=>setEditingPending({...task})}><strong>{task.title}</strong><small>{task.category}<span>编辑</span></small>{task.note && <p>{task.note}</p>}</button></li>)}</ul> : <p>暂无{categoryName}待安排任务</p>}
       </aside>
       <div className="weekly-plan-body">
-        {error && <div className="weekly-plan-error" role="alert">{error}{!ready && <button type="button" onClick={()=>setRetry(value=>value+1)}>重新读取</button>}</div>}
+        {error && <div className="weekly-plan-error" role="alert">{error}{!ready ? <button type="button" onClick={()=>setRetry(value=>value+1)}>重新读取</button> : <button type="button" disabled={busy} onClick={()=>void save()}>重试</button>}</div>}
         {!ready && !error && <p role="status">正在读取本周计划…</p>}
-        <fieldset disabled={!ready || busy}>
+        <fieldset disabled={!ready}>
           <div className="weekly-plan-categories" role="group" aria-label="计划标签">
             <button type="button" aria-pressed={category==='independent'} onClick={()=>setCategory('independent')}>独立</button>
             <button type="button" aria-pressed={category==='ball'} onClick={()=>setCategory('ball')}>皮球</button>
@@ -124,7 +145,7 @@ export default function WeeklyPlanDialog({ owner, week, pending=[], onAddPending
         </fieldset>
       </div>
       </div>
-      <footer><span role="status">{busy?'正在保存…':dirty?'关闭时保存':notice || '按周保存'}</span><UndoButton beforeUndo={()=>save()} hasDraft={dirty} /><button type="submit" disabled={!ready || busy || !dirty}>{busy?'保存中…':'保存'}</button><button type="button" disabled={busy} onClick={()=>void save(true)}>关闭</button></footer>
+      <footer><span role="status">{error?'未保存，请重试':busy?'正在保存…':dirty?'等待自动保存…':notice || '自动保存'}</span><UndoButton beforeUndo={()=>save()} hasDraft={dirty} /><button type="button" onClick={()=>void save(true)}>关闭</button></footer>
     </form>
     {editingPending && <PlanPendingEditor task={editingPending} onSave={onEditPending} onClose={()=>setEditingPending(null)} />}
   </dialog>;
