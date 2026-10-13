@@ -66,6 +66,8 @@ await bundle.close();
 const browser = await chromium.launch({ headless: true, ...(process.env.BROWSER_EXECUTABLE_PATH ? { executablePath: process.env.BROWSER_EXECUTABLE_PATH } : {}) });
 try {
   const page = await browser.newPage();
+  // Recurrence fixtures below belong to this week; keep them visible regardless of execution date.
+  await page.clock.setFixedTime(new Date('2026-09-08T12:00:00+08:00'));
   const errors = [];
   const requests = [];
   page.on('pageerror', error => errors.push(error.message));
@@ -239,15 +241,16 @@ try {
   await page.locator('.create-button').click();
   const taskForm = page.locator('.task-modal');
   await taskForm.locator('input[name=title]').fill('七次产出任务');
-  await taskForm.locator('input[name=amount]').fill('100');
-  assert.equal(await taskForm.locator('input[name=quantity]').inputValue(), '');
+  assert.equal(await taskForm.locator('input[name=amount]').count(), 0);
+  assert.equal(await taskForm.locator('input[name=quantity]').count(), 0);
   await taskForm.getByRole('checkbox', {name:'吃吃',exact:true}).check();
   await taskForm.getByRole('checkbox', {name:'czl',exact:true}).check();
   await taskForm.getByRole('button', {name:'创建任务',exact:true}).click();
   const newTask = await page.evaluate(() => window.fixture['tongpin-tasks-v8'][0]);
   assert.equal(newTask.owner, 'xzx');
   assert.deepEqual(newTask.assistants, ['吃吃','czl']);
-  assert.equal(newTask.quantity, null);
+  assert.equal(newTask.amount, undefined);
+  await page.evaluate(() => { const task = window.fixture['tongpin-tasks-v8'][0]; task.amount = 100; task.quantity = null; window.renderWorkspace(); });
   await page.getByRole('button', {name:'任务时间线',exact:true}).click();
   const assistedCard = page.locator('.calendar-card').filter({hasText:'七次产出任务'});
   await assistedCard.waitFor();
@@ -267,19 +270,13 @@ try {
   console.log('PASS: timeline shows assistants, live edits and removal, retained after remount with owner unchanged');
   await page.locator('.lane-task').filter({hasText:'七次产出任务'}).click({button:'right'});
   await page.getByRole('button', {name:/标记完成/}).click();
-  const completion = page.getByRole('dialog', {name:'确认实际产出'});
-  await completion.waitFor();
-  await completion.locator('input[name=quantity]').fill('7');
-  assert.match(await completion.locator('.task-billing p').textContent(), /700/);
-  await completion.getByRole('button', {name:'确认次数并完成',exact:true}).click();
-  assert.equal(await page.evaluate(() => window.fixture['tongpin-tasks-v8'][0].quantity), 7);
-  assert.equal(await page.evaluate(() => window.fixture['tongpin-tasks-v8'].length), 1);
+  assert.equal(await page.getByRole('dialog', {name:'确认实际产出'}).count(), 0);
+  assert.equal(await page.evaluate(() => window.fixture['tongpin-tasks-v8'][0].status), '已完成');
+  assert.equal(await page.evaluate(() => window.fixture['tongpin-tasks-v8'][0].amount), 100);
+  assert.equal(await page.locator('.task-amount-chip,.calendar-card-amount,.amount-summary').count(), 0);
   await page.getByRole('button', {name:'‹ 返回人员分配',exact:true}).click();
-  await page.getByRole('button', {name:'金额',exact:true}).click();
-  const amountRows = page.locator('.amount-member-grid article');
-  assert.match(await amountRows.first().textContent(), /700/);
-  assert.match(await amountRows.nth(1).locator('header>b').textContent(), /¥0/);
-  console.log('PASS: assistants independent, quantity initially unknown, confirm seven outputs on completion, one task and 700 credited only to owner');
+  assert.equal(await page.getByRole('button', {name:'金额',exact:true}).count(), 0);
+  console.log('PASS: amount controls removed, assistants retained, task completion needs no billing');
   await page.setViewportSize({width:460,height:960});
   await page.addStyleTag({content:readFileSync(new URL('../app/desktop/desktop.css',import.meta.url),'utf8')});
   await page.evaluate(() => {
