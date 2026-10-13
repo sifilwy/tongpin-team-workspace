@@ -1,6 +1,6 @@
 export type View = "overview" | "timeline" | "review" | "personal" | "personality";
 export type Status = "待完成" | "进行中" | "已完成";
-export type Category = "运营" | "销售" | "交付";
+export type Category = "运营" | "销售" | "交付" | "生活";
 export type Review = { id: number; author: string; text: string; createdAt: string };
 export type TaskNote = { id: number; author: string; text: string; createdAt: string };
 export type Task = {
@@ -34,4 +34,4 @@ export const members = [
   { name: "悦悦", role: "团队统筹", color: "#6c5ce7" },
 ];
 
-export const categories: Category[] = ["运营", "销售", "交付"];
+export const categories: Category[] = ["运营", "销售", "交付", "生活"];

@@ -1,0 +1,6 @@
+.task-mark.生活,.lane-task.生活:before{background:#bd7898}
+.calendar-card.生活{border-color:#ecd7e1;border-left-color:#bd7898;background:#fcf2f7}
+.category-column.生活{--category:#bd7898;--soft:#faedf3;border-color:#ecd7e1;background:#fff9fc}
+.person-board .category-column.生活 .overview-task{border-color:#bd78981a}
+.lane-task.生活 .lane-task-category,.completed-categories button.active.生活,.completed-group.生活>header{color:#a05d7b}
+.detail-category.生活{background:#faedf3;color:#a05d7b}
