@@ -14,6 +14,20 @@ after(() => {
 });
 const { handleTeam } = await import('../app/lib/team-store.ts');
 const call = (body, cookie = '') => handleTeam(new Request('http://localhost/api/team', { method: 'POST', headers: { cookie, 'Content-Type': 'application/json' }, body: JSON.stringify(body) }));
+test('daily reviews persist per date with member isolation and conflict protection',async()=>{
+ await handleTeam(new Request('http://localhost/api/team'));const codes=JSON.parse(readFileSync(join(directory,'invitations.json'),'utf8'));
+ const login=await call({action:'login',code:codes.xzx});const cookie=login.headers.get('set-cookie').split(';')[0];
+ const key='tongpin-daily-review-v1:xzx',value={'2026-10-13':'今天的总结\n明天继续','2026-10-12':'昨天的记录'};
+ assert.equal((await call({key,revision:0,value},cookie)).status,200);
+ assert.deepEqual((await(await handleTeam(new Request(`http://localhost/api/team?key=${key}`,{headers:{cookie}}))).json()).document.value,value);
+ assert.equal((await call({key,revision:0,value},cookie)).status,409);
+ assert.equal((await call({key,revision:1,value:{'2026-02-30':'无效日期'}},cookie)).status,400);
+ assert.equal((await call({key,revision:1,value:{'2026-10-13':'字'.repeat(10001)}},cookie)).status,400);
+ const other=(await call({action:'login',code:codes.czl})).headers.get('set-cookie').split(';')[0];
+ assert.equal((await call({key,revision:1,value},other)).status,403);
+ assert.equal((await handleTeam(new Request(`http://localhost/api/team?key=${key}`,{headers:{cookie:other}}))).status,403);
+ assert.equal((await call({key:'tongpin-daily-review-v1:czl',revision:0,value},other)).status,200);
+});
 
 test('weekly plans persist separately across weeks and members with revision protection',async()=>{
  const {emptyWeekPlan,weekPlanKey}=await import('../app/lib/weekly-plan.mjs');

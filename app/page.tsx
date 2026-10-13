@@ -12,7 +12,7 @@ import ScheduleBoundary from "./components/ScheduleBoundary";
 import DesktopWidgetButton from "./components/DesktopWidgetButton";
 import PersonalityPage from "./components/PersonalityPage";
 
-import TaskReviewDialog from "./components/TaskReviewDialog";
+import DailyReview from "./components/DailyReview";
 import { categories, members, NOTION_COLLAB_URL, Category, Message, Status, Task, TaskNote, View } from "./lib/model";
 import "./completed.css";
 import "./completed-actions.css";
@@ -71,7 +71,6 @@ export default function Page() {
   const [messageText, setMessageText] = useState("");
   const [messageAuthor, setMessageAuthor] = useState(member);
   const [reviewText, setReviewText] = useState("");
-  const [reviewTask, setReviewTask] = useState<{ id: number; title: string } | null>(null);
   const [reviewAuthor, setReviewAuthor] = useState(member);
   useEffect(() => {
     if (!taskMenu) return;
@@ -260,7 +259,7 @@ export default function Page() {
     <nav className="main-nav">
       <button className="brand" onClick={() => navigate("overview")}><span>同</span><strong>同频工作台</strong></button>
       <div className="nav-links">{([["overview", "协作总览"], ["timeline", "任务时间线"], ["review", "总结复盘"], ["personal", "个人日程"], ...(member === "xzx" ? [["personality", "人格改变"]] : [])] as [View, string][]).map(([id, label]) => <button key={id} className={view === id ? "active" : ""} onClick={() => navigate(id)}>{label}</button>)}</div>
-      {view !== "personal" && view !== "personality" && <button className="create-button" onClick={() => setShowNew(true)}>＋ 新建任务</button>}
+      {view !== "personal" && view !== "personality" && view !== "review" && <button className="create-button" onClick={() => setShowNew(true)}>＋ 新建任务</button>}
       {view === "personal" && <DesktopWidgetButton />}
     </nav>
 
@@ -325,9 +324,8 @@ export default function Page() {
       <aside className="task-detail"><span className={`status-pill ${selected.status}`}>{selected.status}</span><h2>{selected.title}</h2><p>{selected.description || "暂无补充说明"}</p><div className="notion-task-link"><span>任务笔记</span>{selected.notionUrl ? <a href={selected.notionUrl} target="_blank" rel="noreferrer">打开 Notion ↗</a> : <button type="button" onClick={() => setEditTaskIdState(selected.id)}>绑定 Notion 页面</button>}</div><label>负责人<select value={selected.owner} onChange={(event) => updateTask(selected.id, { owner: event.target.value })}><option>待分配</option>{members.map(member => <option key={member.name}>{member.name}</option>)}</select></label><AssistantPicker value={selected.assistants || []} onChange={assistants => updateTask(selected.id, { assistants })} /><label>任务分类<select value={selected.category} onChange={(event) => updateTask(selected.id, { category: event.target.value as Category })}>{categories.map(category => <option key={category}>{category}</option>)}</select></label><label>计划日期<input type="date" value={selected.due} onChange={(event) => updateTask(selected.id, { due: event.target.value })} /></label>{selected.status === "待完成" && <button className="detail-action" onClick={() => updateTask(selected.id, { status: "进行中" })}>安排进时间线</button>}{selected.status === "进行中" && <button className="detail-action" onClick={() => updateTask(selected.id, { status: "已完成", completedAt: new Date().toISOString() })}>标记完成</button>}<section className="review-box"><PanelTitle title="沟通" note="每条沟通保留署名" />{selected.reviews.map(review => <article key={review.id}><div><strong>{review.author}</strong><time>{review.createdAt}</time></div><p>{review.text}</p></article>)}<form onSubmit={addReview}><select disabled value={reviewAuthor} onChange={(event) => setReviewAuthor(event.target.value)}>{members.map(member => <option key={member.name}>{member.name}</option>)}</select><textarea value={reviewText} onChange={(event) => setReviewText(event.target.value)} placeholder="写下沟通或补充…" /><button>发送</button></form></section></aside>
     </section>}
 
-    {view === "review" && <section className="review-page"><div className="review-header"><div><span>本周复盘</span><h1>完成的事，留下有用的经验。</h1></div><div><b>{tasks.filter(t => t.status === "已完成").length}</b><small>已完成任务</small></div></div><div className="review-list">{[...tasks].filter(t => t.status === "已完成").sort((a, b) => String(b.completedAt).localeCompare(String(a.completedAt))).map(task => <article key={task.id} onContextMenu={(event) => showTaskMenu(event, task.id)} onClick={() => setReviewTask({ id: task.id, title: task.title })}><span>{task.category}</span><div><h3>{task.title}</h3><p>{task.owner}</p></div><button>查看复盘 →</button></article>)}</div></section>}
+    <DailyReview active={view === "review"} />
 
-    {reviewTask && <TaskReviewDialog task={reviewTask} onClose={() => setReviewTask(null)} />}
     {view === "personal" && <ScheduleBoundary><PersonalSchedule /></ScheduleBoundary>}
     {member === "xzx" && <PersonalityPage active={view === "personality"} />}
 
