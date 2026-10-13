@@ -14,6 +14,16 @@ after(() => {
 });
 const { handleTeam } = await import('../app/lib/team-store.ts');
 const call = (body, cookie = '') => handleTeam(new Request('http://localhost/api/team', { method: 'POST', headers: { cookie, 'Content-Type': 'application/json' }, body: JSON.stringify(body) }));
+test('third-tab daily review is shared across all authenticated members',async()=>{
+ await handleTeam(new Request('http://localhost/api/team'));const codes=JSON.parse(readFileSync(join(directory,'invitations.json'),'utf8'));
+ const key='tongpin-daily-review-v1:team';let revision=0;
+ for(const name of ['xzx','吃吃','czl','子涵','悦悦']){
+  const cookie=(await call({action:'login',code:codes[name]})).headers.get('set-cookie').split(';')[0];
+  const read=await handleTeam(new Request(`http://localhost/api/team?key=${key}`,{headers:{cookie}}));assert.equal(read.status,200);const previous=(await read.json()).document;assert.equal(previous?.revision||0,revision);
+  assert.equal((await call({key,revision,value:{'2026-10-13':`团队复盘 ${name}`}},cookie)).status,200);revision++;
+ }
+ assert.equal((await handleTeam(new Request(`http://localhost/api/team?key=${key}`))).status,401);
+});
 test('daily reviews persist per date with member isolation and conflict protection',async()=>{
  await handleTeam(new Request('http://localhost/api/team'));const codes=JSON.parse(readFileSync(join(directory,'invitations.json'),'utf8'));
  const login=await call({action:'login',code:codes.xzx});const cookie=login.headers.get('set-cookie').split(';')[0];

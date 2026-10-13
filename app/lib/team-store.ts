@@ -4,7 +4,7 @@ import { randomBytes, createHash } from "node:crypto";
 import { personalPalette } from "./personal-colors.mjs";
 import { PERSONALITY_KEY, validPersonality } from "./personality-data.mjs";
 import { isWeeklyPlanKey, validWeekPlan } from "./weekly-plan.mjs";
-import { isDailyReviewKey, validDailyReview, dailyReviewKey } from "./daily-review.mjs";
+import { isDailyReviewKey, validDailyReview, dailyReviewKey, TEAM_DAILY_REVIEW_KEY } from "./daily-review.mjs";
 
 const names = ["xzx", "吃吃", "czl", "子涵", "悦悦"];
 const dir = process.env.TONGPIN_DATA_DIR || join(process.cwd(), ".team-data");
@@ -41,7 +41,7 @@ export async function handleTeam(request: Request) {
     if (!member) return reply({ error: "请使用邀请码进入" }, 401);
     const key = new URL(request.url).searchParams.get("key");
     if (key === PERSONALITY_KEY && member !== "xzx") return reply({ error: "无权访问此内容" }, 403);
-    if (isDailyReviewKey(key) && key !== dailyReviewKey(member)) return reply({ error: "无权访问此内容" }, 403);
+    if (isDailyReviewKey(key) && key !== TEAM_DAILY_REVIEW_KEY && key !== dailyReviewKey(member)) return reply({ error: "无权访问此内容" }, 403);
     if (key && !allowed.has(key) && !isWeeklyPlanKey(key) && !isDailyReviewKey(key)) return reply({ error: "未知数据类型" }, 400);
     return reply(key ? { member, document: state.documents[key] || null } : { member });
   }
@@ -69,7 +69,7 @@ export async function handleTeam(request: Request) {
   if (!member) return reply({ error: "登录已过期，请重新进入" }, 401);
   if (body.action === "logout") { delete state.sessions[hash(token)]; save(state); return reply({}, 200, { "Set-Cookie": `tongpin_session=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0${secureCookie ? "; Secure" : ""}` }); }
   if (!allowed.has(body.key) && !isWeeklyPlanKey(body.key) && !isDailyReviewKey(body.key)) return reply({ error: "未知数据类型" }, 400);
-  if (isDailyReviewKey(body.key) && body.key !== dailyReviewKey(member)) return reply({ error: "无权访问此内容" }, 403);
+  if (isDailyReviewKey(body.key) && body.key !== TEAM_DAILY_REVIEW_KEY && body.key !== dailyReviewKey(member)) return reply({ error: "无权访问此内容" }, 403);
   if (body.key === PERSONALITY_KEY && member !== "xzx") return reply({ error: "无权访问此内容" }, 403);
   const previous = state.documents[body.key];
   if ((previous?.revision || 0) !== body.revision) return reply({ error: "另一位成员已更新，请刷新后重试", document: previous }, 409);
