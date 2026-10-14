@@ -688,4 +688,33 @@ try {
   await page.clock.setSystemTime(new Date(2026,8,11,3,0));await page.evaluate(()=>window.dispatchEvent(new Event('focus')));
   await page.waitForFunction(()=>!document.querySelector('.personal-now-line'));
   console.log('PASS: 07:00–next-day 02:00 axis, 3/4/7 days and navigation, correct weekdays, ticking subtle current-time line, overnight edit/resize/validation and date boundary');
+  await page.evaluate(() => {
+    const base = { title: '分类删除测试', note: '', startTime: '09:00', endTime: '10:00', owner: 'xzx', category: '皮球', done: false };
+    window.fixture['tongpin-personal-tasks-v3'] = [
+      { ...base, id: 11001, due: null },
+      { ...base, id: 11002, due: '2025-01-01', done: true },
+      { ...base, id: 11003, due: '2027-01-01', seriesId: 'delete-series' },
+      { ...base, id: 11004, due: '2027-01-02', seriesId: 'delete-series' },
+      { ...base, id: 11005, due: null, owner: 'czl' },
+      { ...base, id: 11006, due: null, category: '独立' },
+    ];
+    window.fixture['tongpin-personal-categories-v2'] = { xzx: ['独立', '皮球'], czl: ['皮球'] };
+    window.fixture['tongpin-personal-category-colors-v1'] = { xzx: { '皮球': 'orange' }, czl: { '皮球': 'orange' } };
+    window.renderSchedule();
+  });
+  const removeCategory = page.getByRole('button', { name: '删除皮球分类及全部活动', exact: true });
+  await removeCategory.waitFor();
+  page.once('dialog', async dialog => { assert.match(dialog.message(), /全部 4 项/); await dialog.dismiss(); });
+  await removeCategory.click();
+  assert.equal(await page.evaluate(() => window.fixture['tongpin-personal-tasks-v3'].length), 6);
+  page.once('dialog', dialog => dialog.accept());
+  await removeCategory.click();
+  await page.waitForFunction(() => window.fixture['tongpin-personal-tasks-v3'].length === 2);
+  assert.deepEqual(await page.evaluate(() => window.fixture['tongpin-personal-tasks-v3'].map(t => t.id)), [11005, 11006]);
+  assert.deepEqual(await page.evaluate(() => window.fixture['tongpin-personal-categories-v2']), { xzx: ['独立'], czl: ['皮球'] });
+  assert.deepEqual(await page.evaluate(() => window.fixture['tongpin-personal-category-colors-v1']), { xzx: {}, czl: { '皮球': 'orange' } });
+  await page.evaluate(() => window.renderSchedule());
+  await page.locator('[data-personal-category="独立"]').waitFor();
+  assert.equal(await page.locator('[data-personal-category="皮球"]').count(), 0);
+  console.log('PASS: category deletion cancel/confirm, all dates/statuses/recurrences, other owners preserved, remount stays deleted');
 } finally { await browser.close(); }

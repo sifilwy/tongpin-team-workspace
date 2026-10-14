@@ -53,7 +53,7 @@
 .personal-categories{gap:8px!important;margin-top:14px!important;padding-bottom:12px!important}
 .personal-category-section{overflow:hidden;border:1px solid #e7e3dc;border-radius:12px;background:#fff;box-shadow:0 5px 16px rgba(42,37,31,.035)}
 .personal-category-row{display:grid;grid-template-columns:minmax(0,1fr) 28px;gap:3px;padding:4px;border-radius:10px;transition:background .14s,box-shadow .14s,transform .14s}
-.personal-category-row{grid-template-columns:minmax(0,1fr) 24px 28px}
+.personal-category-row{grid-template-columns:minmax(0,1fr) 24px 28px 40px}
 .personal-category-color{display:grid!important;place-items:center;padding:0!important;border:0;background:transparent;cursor:pointer}
 .personal-category-color i{display:block;width:11px;height:11px;border-radius:50%;background:var(--category-color,#7564d7);border:2px solid #fff;box-shadow:0 0 0 1px var(--category-border,#d9d0fb)}
 .personal-color-picker{display:flex;flex-wrap:wrap;gap:8px;padding:8px 12px 12px}
@@ -184,3 +184,6 @@
 .personal-completed-grid>button strong{overflow:hidden;color:#656a74;font-size:11px;text-overflow:ellipsis;white-space:nowrap}
 .personal-completed-grid>button small{margin-top:4px;color:#999ca5;font-size:8px}
 .personal-completed-grid>button em{padding:4px 7px;border-radius:7px;background:#e8e8e5;color:#8d9098;font-size:8px;font-style:normal}
+
+.personal-category-delete{padding:4px!important;justify-content:center!important;color:#b54c59!important;font-size:12px!important;white-space:nowrap}
+.personal-category-delete:hover,.personal-category-delete:focus-visible{background:#fbe9ec!important}

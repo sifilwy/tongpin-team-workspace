@@ -201,6 +201,24 @@ export default function PersonalSchedule() {
     setAddingCategory(false);
   }
 
+  function deleteCategory(category: string) {
+    const count = tasks.filter(task => task.owner === owner && task.category === category).length;
+    if (!window.confirm(`删除 ${owner} 的“${category}”分类及全部 ${count} 项活动？\n包括所有日期、待安排、已完成和重复日程；此操作不会删除计划里的文字。`)) return;
+    setSavedCategories(current => ({ ...current, [owner]: categories[owner].filter(item => item !== category) }));
+    setSavedColors(current => {
+      const colors = { ...current[owner] };
+      delete colors[category];
+      return { ...current, [owner]: colors };
+    });
+    setOpenCategories(current => ({ ...current, [owner]: current[owner].filter(item => item !== category) }));
+    setColorCategory(null);
+    setRenamingCategory(null);
+    setMenu(null);
+    // Record task removal last so Ctrl+Z restores the activities first.
+    // Categories are also recovered from their tasks by restorePersonalCategories.
+    setTasks(current => current.filter(task => task.owner !== owner || task.category !== category));
+  }
+
   function renameCategory(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!renamingCategory) return;
@@ -503,7 +521,7 @@ export default function PersonalSchedule() {
             if (renamingCategory === item) return <form className="personal-category-form" key={item} onSubmit={renameCategory}><input autoFocus aria-label="修改分类名称" value={categoryDraft} onChange={(event) => setCategoryDraft(event.target.value)} onFocus={(event) => event.currentTarget.select()} /><button aria-label="保存分类名称">✓</button><button type="button" aria-label="取消修改分类" onClick={() => { setRenamingCategory(null); setCategoryDraft(""); }}>×</button></form>;
             const renderTask = ({task, count}: {task: PersonalTask; count: number}, status: "pending" | "active") => <button key={task.seriesId || task.id} data-pending-id={task.id} data-repeat-group={task.seriesId} title={task.seriesId ? `本次：${task.due || "待安排"} ${scheduleTimeLabel(task.startTime)}–${scheduleTimeLabel(task.endTime)}；打开或拖动后可选择修改范围` : undefined} draggable={false} className={`${dragId === task.id ? "dragging" : ""} ${dropKey === `list-${task.id}` ? "insert-before" : ""}`} onPointerDown={(event) => startPointerDrag(event, task.id)} onClick={() => clickTask(task)} onContextMenu={(event) => openMenu(event, task.id)}><strong>{task.title}</strong><small>{status === "pending" ? "待安排" : `${task.seriesId ? "最近未完成" : "正在进行"} · ${task.due?.slice(5).replace("-", "/")}`}</small>{task.seriesId && <span className="personal-series-count">↻ 重复 · 剩余 {count} 次</span>}</button>;
             return <section className="personal-category-section" key={item} style={categoryStyle(owner, item)}>
-              <div data-personal-category={item} className={`personal-category-row ${dropKey === `category-${item}` ? "is-over" : ""}`}><button className={opened ? "active" : ""} aria-expanded={opened} onClick={() => toggleCategory(item)}><i>{opened ? "⌄" : "›"}</i><span>{item}</span><b>{pendingEntries.length + activeEntries.length}</b></button><button type="button" className="personal-category-color" aria-label={`设置${item}配色`} title="分类配色" aria-expanded={colorCategory === item} onClick={() => setColorCategory(colorCategory === item ? null : item)}><i /></button><button className="personal-category-rename" title="修改分类名称" aria-label={`修改${item}分类名称`} onClick={() => { setAddingCategory(false); setRenamingCategory(item); setCategoryDraft(item); }}>✎</button></div>
+              <div data-personal-category={item} className={`personal-category-row ${dropKey === `category-${item}` ? "is-over" : ""}`}><button className={opened ? "active" : ""} aria-expanded={opened} onClick={() => toggleCategory(item)}><i>{opened ? "⌄" : "›"}</i><span>{item}</span><b>{pendingEntries.length + activeEntries.length}</b></button><button type="button" className="personal-category-color" aria-label={`设置${item}配色`} title="分类配色" aria-expanded={colorCategory === item} onClick={() => setColorCategory(colorCategory === item ? null : item)}><i /></button><button className="personal-category-rename" title="修改分类名称" aria-label={`修改${item}分类名称`} onClick={() => { setAddingCategory(false); setRenamingCategory(item); setCategoryDraft(item); }}>✎</button><button type="button" className="personal-category-delete" title="删除整个分类及全部活动" aria-label={`删除${item}分类及全部活动`} onClick={() => deleteCategory(item)}>删除</button></div>
               {colorCategory === item && <div className="personal-color-picker" role="group" aria-label={`${item}配色`}>{personalPalette.map(palette => <button key={palette.id} type="button" aria-label={palette.name} aria-pressed={categoryPalette(savedColors, owner, item).id === palette.id} style={{background: palette.color}} onClick={() => { setSavedColors(current => ({...current, [owner]: {...current?.[owner], [item]: palette.id}})); setColorCategory(null); }} />)}</div>}{opened && <div className="personal-category-panel">
                 <div className={`personal-status-block ${dropKey === `status-${item}-pending` ? "is-over" : ""}`} data-personal-status="pending" data-category-name={item}><header><span>待安排</span><div className="personal-pending-actions"><b>{pendingEntries.length}</b><button type="button" aria-label={`添加${item}待安排任务`} title="添加待安排任务" onClick={()=>openNew({owner,due:null,category:item})}>＋</button></div></header><div className="personal-pending-list">{pendingEntries.map((entry) => renderTask(entry, "pending"))}</div></div>
                 <div className={`personal-status-block ${dropKey === `status-${item}-active` ? "is-over" : ""}`} data-personal-status="active" data-category-name={item}><header><span>正在进行</span><b>{activeEntries.length}</b></header><div className="personal-pending-list">{activeEntries.map((entry) => renderTask(entry, "active"))}</div></div>
