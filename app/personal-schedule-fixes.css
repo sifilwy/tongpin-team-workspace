@@ -187,3 +187,4 @@
 
 .personal-category-delete{padding:4px!important;justify-content:center!important;color:#b54c59!important;font-size:12px!important;white-space:nowrap}
 .personal-category-delete:hover,.personal-category-delete:focus-visible{background:#fbe9ec!important}
+.personal-shared-section>h3{margin:0;padding:12px 14px 4px;color:#7564d7;font-size:13px;font-weight:600}

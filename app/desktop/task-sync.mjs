@@ -29,7 +29,7 @@ export async function saveTaskDone(id, done, signal) {
   for (let attempt = 0; attempt < 4; attempt++) {
     const rows = document?.value;
     const matches = rows?.filter(task => task?.id === id);
-    if (matches?.length !== 1 || matches[0].owner !== 'xzx') throw new Error('这个任务已被修改或删除，请刷新日程');
+    if (matches?.length !== 1 || !['xzx', '全员'].includes(matches[0].owner)) throw new Error('这个任务已被修改或删除，请刷新日程');
     if (matches[0].done === done) return document;
     const result = await request({
       method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -37,7 +37,7 @@ export async function saveTaskDone(id, done, signal) {
     }, signal);
     document = result.document;
     if (!result.conflict) {
-      if (!document?.value.some(task => task?.id === id && task.owner === 'xzx' && task.done === done)) throw new Error('保存尚未确认，请刷新后重试');
+      if (!document?.value.some(task => task?.id === id && ['xzx', '全员'].includes(task.owner) && task.done === done)) throw new Error('保存尚未确认，请刷新后重试');
       rememberDocumentUndo(key,rows,document.value);
       return document;
     }

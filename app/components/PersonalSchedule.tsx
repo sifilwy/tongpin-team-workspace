@@ -15,10 +15,11 @@ import { CSSProperties, FormEvent, MouseEvent, PointerEvent as ReactPointerEvent
 import { computeOverlapLayout, snapStart, scheduleMinutes as toMinutes, toTime, scheduleTimeLabel, DAY_START, DAY_END, currentTimePosition, calendarDates } from "../lib/personal-layout.mjs";
 
 type Owner = "xzx" | "吃吃" | "czl" | "子涵" | "悦悦";
+type TaskOwner = Owner | "全员";
 type PersonalTask = {
   id: number;
   title: string;
-  owner: Owner;
+  owner: TaskOwner;
   due: string | null;
   done: boolean;
   category: string;
@@ -69,7 +70,7 @@ export default function PersonalSchedule() {
   const [savedCategories, setSavedCategories] = useSharedState<Record<Owner, string[]>>(CATEGORY_KEY, createDefaultCategories);
   const [savedColors, setSavedColors] = useSharedState<Record<string, Record<string, string>>>("tongpin-personal-category-colors-v1", {});
   const [colorCategory, setColorCategory] = useState<string | null>(null);
-  function categoryStyle(taskOwner: Owner, category: string): CSSProperties {
+  function categoryStyle(taskOwner: TaskOwner, category: string): CSSProperties {
     const palette = categoryPalette(savedColors, taskOwner, category);
     return { "--category-color": palette.color, "--category-background": palette.background, "--category-border": palette.border } as CSSProperties;
   }
@@ -136,7 +137,8 @@ export default function PersonalSchedule() {
     window.addEventListener("keydown", cancel);
     return () => window.removeEventListener("keydown", cancel);
   }, []);
-  const [modalOwner, setModalOwner] = useState<Owner>("xzx");
+  const [modalOwner, setModalOwner] = useState<TaskOwner>("xzx");
+  const modalCategories = modalOwner === "全员" ? ["全员日程"] : categories[modalOwner];
   const [modalDue, setModalDue] = useState("");
   const [formError, setFormError] = useState("");
   const [repeatChange, setRepeatChange] = useState<{id:number;patch:Partial<PersonalTask>;beforeId?:number;fromEditor:boolean} | null>(null);
@@ -188,7 +190,8 @@ export default function PersonalSchedule() {
   const dates = calendarDates(now,viewDays,weekOffset);
   const weekStart = mondayOf(dates[0]);
   const timePosition = currentTimePosition(now);
-  const filtered = useMemo(() => tasks.filter((task) => allView || task.owner === owner), [allView, owner, tasks]);
+  const filtered = useMemo(() => tasks.filter((task) => allView || task.owner === owner || task.owner === "全员"), [allView, owner, tasks]);
+  const sharedTasks = tasks.filter(task => task.owner === "全员" && !task.done);
   const completedTasks = useMemo(() => tasks.filter((task) => task.done).sort((a, b) => (b.due || "").localeCompare(a.due || "")), [tasks]);
 
   function addCategory(event: FormEvent<HTMLFormElement>) {
@@ -314,7 +317,7 @@ export default function PersonalSchedule() {
     if (!task) return;
     const start = toMinutes(startTime);
     const duration = Math.max(15, toMinutes(task.endTime) - toMinutes(task.startTime));
-    moveTask(id, { due, owner: allView ? task.owner : owner, startTime, endTime: toTime(Math.min(DAY_END, start + duration)) });
+    moveTask(id, { due, owner: allView || task.owner === "全员" ? task.owner : owner, startTime, endTime: toTime(Math.min(DAY_END, start + duration)) });
   }
 
   function pointerPreview(clientY: number, track: HTMLElement, due: string) {
@@ -419,9 +422,9 @@ export default function PersonalSchedule() {
       else if (statusTarget?.dataset.personalStatus && statusTarget.dataset.categoryName) {
         const moving = tasks.find((task) => task.id === pointer.id);
         const pendingStatus = statusTarget.dataset.personalStatus === "pending";
-        moveTask(pointer.id, { owner, category: statusTarget.dataset.categoryName, due: pendingStatus ? null : moving?.due || iso(now), done: false }, listTarget ? Number(listTarget.dataset.pendingId) : undefined);
+        moveTask(pointer.id, { owner: moving?.owner === "全员" ? "全员" : owner, category: moving?.owner === "全员" ? moving.category : statusTarget.dataset.categoryName, due: pendingStatus ? null : moving?.due || iso(now), done: false }, listTarget ? Number(listTarget.dataset.pendingId) : undefined);
       }
-      else if (categoryTarget?.dataset.personalCategory) moveTask(pointer.id, { category: categoryTarget.dataset.personalCategory });
+      else if (categoryTarget?.dataset.personalCategory && tasks.find(task => task.id === pointer.id)?.owner !== "全员") moveTask(pointer.id, { category: categoryTarget.dataset.personalCategory });
     }
     pointerDrag.current = null;
     endDrag();
@@ -436,7 +439,7 @@ export default function PersonalSchedule() {
   function submitTask(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const data = new FormData(event.currentTarget);
-    const selectedOwner = String(data.get("owner")) as Owner;
+    const selectedOwner = String(data.get("owner")) as TaskOwner;
     const selectedCategory = String(data.get("category"));
     const due = String(data.get("due") || "") || null;
     const startTime = String(data.get("startTime") || "09:00");
@@ -505,7 +508,7 @@ export default function PersonalSchedule() {
   }
 
   const movingTask = tasks.find(task => task.id === dragId);
-  const previewConflicts = dragPreview ? tasks.filter(task => task.id !== dragId && task.owner === movingTask?.owner && task.due === dragPreview.due && toMinutes(task.startTime) < toMinutes(dragPreview.endTime) && toMinutes(task.endTime) > toMinutes(dragPreview.startTime)).length : 0;
+  const previewConflicts = dragPreview ? tasks.filter(task => task.id !== dragId && (task.owner === movingTask?.owner || task.owner === "全员" || movingTask?.owner === "全员") && task.due === dragPreview.due && toMinutes(task.startTime) < toMinutes(dragPreview.endTime) && toMinutes(task.endTime) > toMinutes(dragPreview.startTime)).length : 0;
   return <section className={`personal-v2 ${dragId !== null ? "is-dragging" : ""}`}>
     <aside className="personal-sidebar">
       <div className="personal-segment">{PEOPLE.map((person) => <button key={person.name} className={owner === person.name && !allView ? "active" : ""} onClick={() => selectPerson(person.name)}>{person.name}</button>)}</div>
@@ -529,13 +532,27 @@ export default function PersonalSchedule() {
             </section>;
           })}
           {addingCategory ? <form className="personal-category-form" onSubmit={addCategory}><input autoFocus aria-label="新分类名称" value={newCategoryName} onChange={(event) => setNewCategoryName(event.target.value)} placeholder="分类名称" /><button aria-label="保存分类">✓</button><button type="button" aria-label="取消新增分类" onClick={() => { setAddingCategory(false); setNewCategoryName(""); }}>×</button></form> : <button className="add-category" onClick={() => { setRenamingCategory(null); setCategoryDraft(""); setAddingCategory(true); }}>＋ 新增分类</button>}
+          {sharedTasks.length > 0 && <section className="personal-category-section personal-shared-section" aria-label="全员日程" style={categoryStyle("全员", "全员日程")}>
+            <h3>全员日程</h3>
+            <div className="personal-category-panel">{(["pending", "active"] as const).map(status => {
+              const entries = groupPersonalTasks(sharedTasks.filter(task => status === "pending" ? !task.due : Boolean(task.due)));
+              if (!entries.length) return null;
+              return <div className="personal-status-block" key={status}>
+                <header><span>{status === "pending" ? "待安排" : "正在进行"}</span><b>{entries.length}</b></header>
+                <div className="personal-pending-list">{entries.map(({task, count}) => <button key={task.seriesId || task.id} data-pending-id={task.id} data-shared-task="true" className={dragId === task.id ? "dragging" : ""} onPointerDown={event => startPointerDrag(event, task.id)} onClick={() => clickTask(task)} onContextMenu={event => openMenu(event, task.id)}>
+                  <strong>{task.title}</strong><small>全员 · {task.due?.slice(5).replace("-", "/") || "待安排"}</small>
+                  {task.seriesId && <span className="personal-series-count">↻ 重复 · 剩余 {count} 次</span>}
+                </button>)}</div>
+              </div>;
+            })}</div>
+          </section>}
         </div>
     </aside>
 
     <main className="personal-main">
       <header className="personal-topbar"><div><span>{completedView ? "全部成员" : allView ? "全部成员" : owner}</span><strong>{completedView ? "已完成任务" : `${dates[0].getFullYear()}年${String(dates[0].getMonth() + 1).padStart(2, "0")}月`}</strong></div><div className="personal-top-actions"><button className={`all-view-button ${allView ? "active" : ""}`} onClick={() => { if (allView) { setAllView(false); setCompletedView(false); } else setAllView(true); }}>{allView ? "返回我的日程" : "查看全员"}</button>{allView && <button className={`personal-completed-button ${completedView ? "active" : ""}`} onClick={() => setCompletedView((value) => !value)}>已完成 <b>{completedTasks.length}</b></button>}<button type="button" className="personal-plan-button" onClick={()=>setPlanContext({owner:allView ? member : owner,week:iso(weekStart)})}>计划</button><button className="personal-create" onClick={() => openNew({ owner: allView ? "xzx" : owner, due: iso(now) })}>＋ 添加</button>{!completedView && <><select className="personal-view-select" aria-label="日程显示范围" value={viewDays} onChange={event=>changeView(Number(event.target.value) as 3 | 4 | 7)}><option value={7}>整周</option><option value={3}>近三天</option><option value={4}>近四天</option></select><div className="personal-week-switch"><button aria-label={viewDays===7 ? "上一周" : `前${viewDays}天`} onClick={() => setWeekOffset((value) => value - 1)}>‹</button><button onClick={() => setWeekOffset(0)}>{viewDays===7 ? "本周" : "今天"}</button><button aria-label={viewDays===7 ? "下一周" : `后${viewDays}天`} onClick={() => setWeekOffset((value) => value + 1)}>›</button></div></>}</div></header>
 
-      {completedView ? <section className="personal-completed-view"><header><div><strong>全部已完成</strong><span>先集中放在这里，后续再细分</span></div><b>{completedTasks.length}</b></header><div className="personal-completed-grid">{completedTasks.map((task) => { const person = PEOPLE.find((item) => item.name === task.owner)!; return <button key={task.id} onClick={() => clickTask(task)} onContextMenu={(event) => openMenu(event, task.id)}><i style={{ background: person.color }}>{task.owner[0]}</i><span><strong>{task.title}</strong><small>{task.owner} · {task.category} · {task.due?.replaceAll("-", "/") || "未安排"}</small></span><em>已完成</em></button>; })}</div></section> : <>
+      {completedView ? <section className="personal-completed-view"><header><div><strong>全部已完成</strong><span>先集中放在这里，后续再细分</span></div><b>{completedTasks.length}</b></header><div className="personal-completed-grid">{completedTasks.map((task) => { const person = PEOPLE.find((item) => item.name === task.owner) || { name: "全员", color: "#7564d7" }; return <button key={task.id} onClick={() => clickTask(task)} onContextMenu={(event) => openMenu(event, task.id)}><i style={{ background: person.color }}>{task.owner[0]}</i><span><strong>{task.title}</strong><small>{task.owner} · {task.category} · {task.due?.replaceAll("-", "/") || "未安排"}</small></span><em>已完成</em></button>; })}</div></section> : <>
       {dragId !== null && <><div className="personal-edge prev" /><div className="personal-edge next" /></>}
       <div className="personal-timeline-shell" style={{"--calendar-days":viewDays} as CSSProperties}>
         <aside className="personal-time-axis"><header /><div>{HOURS.map((hour) => <span key={hour} style={{ top: `${((hour * 60 - DAY_START) / (DAY_END - DAY_START)) * 100}%` }}>{hour>=24 ? "次日 " : ""}{String(hour%24).padStart(2, "0")}:00</span>)}</div></aside>
@@ -546,7 +563,7 @@ export default function PersonalSchedule() {
           return <section key={due} className={`personal-date ${due === iso(now) ? "today" : ""} ${dropKey === due ? "is-over" : ""}`}>
             <header title={due}><span>{["周日", "周一", "周二", "周三", "周四", "周五", "周六"][date.getDay()]}</span><b>{date.getMonth()+1}/{date.getDate()}</b></header>
             <div className="personal-day-track" data-due={due} onPointerDown={event => beginRange(event, due)} onPointerMove={updateRange} onPointerUp={finishRange} onPointerCancel={cancelRange} onLostPointerCapture={cancelRange}>{timePosition?.due===due && <div className="personal-now-line" role="img" aria-label={`当前时间 ${iso(now)} ${timePosition.label}`} style={{top:`${(timePosition.minute-DAY_START)/(DAY_END-DAY_START)*100}%`}}><span>{timePosition.label}</span></div>}{newRange?.due === due && <div className="personal-new-range" style={{ top: `${(newRange.start - DAY_START) / (DAY_END - DAY_START) * 100}%`, height: `${(newRange.end - newRange.start) / (DAY_END - DAY_START) * 100}%` }}><span>{scheduleTimeLabel(toTime(newRange.start))}–{scheduleTimeLabel(toTime(newRange.end))}</span></div>}{dragPreview?.due === due && <div className={`personal-drop-preview ${previewConflicts ? "has-conflict" : ""}`} style={{ top: `${((toMinutes(dragPreview.startTime) - DAY_START) / (DAY_END - DAY_START)) * 100}%`, height: `${(toMinutes(dragPreview.endTime) - toMinutes(dragPreview.startTime)) / (DAY_END - DAY_START) * 100}%` }}><span className="personal-preview-start" role="status">{scheduleTimeLabel(dragPreview.startTime)}–{scheduleTimeLabel(dragPreview.endTime)} · {toMinutes(dragPreview.endTime) - toMinutes(dragPreview.startTime)} 分钟{previewConflicts > 0 && ` · 与 ${previewConflicts} 项日程重叠`}</span><span className="personal-preview-end">{scheduleTimeLabel(dragPreview.endTime)}</span></div>}{dayTasks.map((task) => {
-              const person = PEOPLE.find((item) => item.name === task.owner)!;
+              const person = PEOPLE.find((item) => item.name === task.owner) || { name: "全员", color: "#7564d7" };
               const start = Math.max(DAY_START, toMinutes(task.startTime));
               const end = Math.min(DAY_END, Math.max(start + 15, toMinutes(task.endTime)));
               const placement = overlapLayout.get(task.id) || { column: 0, columns: 1 };
@@ -564,7 +581,7 @@ ${task.note}` : ""}`} style={style} draggable={false} className={`personal-card 
 
     {menu && (() => { const task = tasks.find((item) => item.id === menu.id); if (!task) return null; return <div className="personal-context" style={{ left: menu.x, top: menu.y }} onPointerDown={(event) => event.stopPropagation()}><strong>{task.title}</strong><button onClick={() => { setTasks((current) => current.map((item) => item.id === task.id ? { ...item, done: !item.done } : item)); setMenu(null); }}>{task.done ? "恢复未完成" : "标记完成"}</button><button onClick={() => { openEditor(task); setMenu(null); }}>修改任务</button>{task.due && <button onClick={() => { moveTask(task.id, { due: null, done: false }); setMenu(null); }}>移回待办</button>}{task.seriesId && <button onClick={() => stopRepeating(task)}>停止后续重复</button>}<button className="danger" onClick={() => { if (window.confirm(`确认删除“${task.title}”？`)) setTasks((current) => current.filter((item) => item.id !== task.id)); setMenu(null); }}>删除任务</button></div>; })()}
 
-    {(editing || newDefaults) && <div className="personal-modal-bg"><form className="personal-edit-modal" onSubmit={submitTask}><header><strong>{editing ? "修改个人任务" : "新建个人任务"}</strong><button type="button" onClick={() => { setEditing(null); setNewDefaults(null); }}>×</button></header><label>任务名称<input name="title" autoFocus required defaultValue={editing?.title || ""} placeholder="准备完成什么" /></label><div><label>成员<select name="owner" value={modalOwner} onChange={(event) => setModalOwner(event.target.value as Owner)}>{PEOPLE.map((person) => <option key={person.name}>{person.name}</option>)}</select></label><label>个人分类<select key={modalOwner} name="category" defaultValue={editing?.owner === modalOwner && categories[modalOwner].includes(editing.category) ? editing.category : newDefaults?.owner === modalOwner && newDefaults.category && categories[modalOwner].includes(newDefaults.category) ? newDefaults.category : categories[modalOwner][0]}>{categories[modalOwner].map((item) => <option key={item}>{item}</option>)}</select></label></div><label>安排日期<input name="due" type="date" value={modalDue} onChange={event => setModalDue(event.target.value)} /><small>留空则进入左侧待办</small></label><div className="personal-time-fields"><label>开始时间<input name="startTime" type="time" step="900" defaultValue={editing?.startTime || newDefaults?.startTime || "09:00"} /></label><label>结束时间<input name="endTime" type="time" step="900" defaultValue={editing?.endTime || newDefaults?.endTime || "10:00"} /></label></div><p className="personal-overnight-hint">00:00–02:00 属于安排日期的次日凌晨。</p>{editing?.seriesId ? <section className="personal-repeat-info"><strong>{editing.repeatRule ? repeatDescription(editing.repeatRule, editing.repeatDays) : "重复日程"} · 至 {editing.repeatUntil}</strong><p>保存时可选择修改本次或本次及以后。备注在整组重复日程中统一共享。</p><button type="button" onClick={() => stopRepeating(editing)}>停止后续重复</button></section> : <PersonalRepeatFields due={modalDue} />}{formError && <p className="personal-form-error" role="alert">{formError}</p>}<label>备注<textarea name="note" defaultValue={editing?.note || ""} placeholder="写下这项日程的备注（选填）" /></label><button className="save">保存</button></form></div>}
+    {(editing || newDefaults) && <div className="personal-modal-bg"><form className="personal-edit-modal" onSubmit={submitTask}><header><strong>{editing ? "修改个人任务" : "新建个人任务"}</strong><button type="button" onClick={() => { setEditing(null); setNewDefaults(null); }}>×</button></header><label>任务名称<input name="title" autoFocus required defaultValue={editing?.title || ""} placeholder="准备完成什么" /></label><div><label>成员<select name="owner" value={modalOwner} onChange={(event) => setModalOwner(event.target.value as TaskOwner)}>{PEOPLE.map((person) => <option key={person.name}>{person.name}</option>)}<option value="全员">全员</option></select></label><label>个人分类<select key={modalOwner} name="category" defaultValue={editing?.owner === modalOwner && modalCategories.includes(editing.category) ? editing.category : newDefaults?.owner === modalOwner && newDefaults.category && modalCategories.includes(newDefaults.category) ? newDefaults.category : modalCategories[0]}>{modalCategories.map((item) => <option key={item}>{item}</option>)}</select></label></div>{modalOwner === "全员" && <p className="personal-overnight-hint">所有成员都能看到；修改、完成和删除会同步给全员。</p>}<label>安排日期<input name="due" type="date" value={modalDue} onChange={event => setModalDue(event.target.value)} /><small>留空则进入左侧待办</small></label><div className="personal-time-fields"><label>开始时间<input name="startTime" type="time" step="900" defaultValue={editing?.startTime || newDefaults?.startTime || "09:00"} /></label><label>结束时间<input name="endTime" type="time" step="900" defaultValue={editing?.endTime || newDefaults?.endTime || "10:00"} /></label></div><p className="personal-overnight-hint">00:00–02:00 属于安排日期的次日凌晨。</p>{editing?.seriesId ? <section className="personal-repeat-info"><strong>{editing.repeatRule ? repeatDescription(editing.repeatRule, editing.repeatDays) : "重复日程"} · 至 {editing.repeatUntil}</strong><p>保存时可选择修改本次或本次及以后。备注在整组重复日程中统一共享。</p><button type="button" onClick={() => stopRepeating(editing)}>停止后续重复</button></section> : <PersonalRepeatFields due={modalDue} />}{formError && <p className="personal-form-error" role="alert">{formError}</p>}<label>备注<textarea name="note" defaultValue={editing?.note || ""} placeholder="写下这项日程的备注（选填）" /></label><button className="save">保存</button></form></div>}
     {planContext && <WeeklyPlanDialog key={`${planContext.owner}:${planContext.week}`} owner={planContext.owner} week={planContext.week} pending={tasks.filter(task=>task.owner===planContext.owner && !task.done && task.due===null)} onAddPending={(title,category)=>setTasks(current=>[{id:Math.max(Date.now(),...current.map(task=>task.id+1)),title,category,owner:planContext.owner,due:null,done:false,note:'',startTime:'09:00',endTime:'10:00'},...current])} onEditPending={(id,patch)=>setTasks(current=>current.some(task=>task.id===id && task.owner===planContext.owner && !task.done && task.due===null)?applyRepeatEdit(current,id,patch,"single"):current)} onClose={()=>setPlanContext(null)} />}
     {repeatChange && (() => { const task=tasks.find(item=>item.id===repeatChange.id); return task ? <PersonalRepeatScope title={task.title} date={task.due || ""} futureCount={tasks.filter(item=>laterOccurrence(item,task)).length} onChoose={confirmRepeatChange} onCancel={()=>setRepeatChange(null)} /> : null; })()}
   </section>;

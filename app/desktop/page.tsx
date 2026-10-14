@@ -23,7 +23,7 @@ export default function DesktopAgenda() {
   const acceptDocument = (document: { revision: number; value: Entry[] } | null) => {
     if ((document?.revision ?? 0) < sync.current.revision) return;
     sync.current.revision = document?.revision ?? 0;
-    setEntries((document?.value ?? []).filter(task => task && task.owner === 'xzx' && typeof task.title === 'string'));
+    setEntries((document?.value ?? []).filter(task => task && (task.owner === 'xzx' || task.owner === '全员') && typeof task.title === 'string'));
     setError(''); setUpdatedAt(new Date()); setLoaded(true);
   };
   const toggleTask = async (task: Entry) => {

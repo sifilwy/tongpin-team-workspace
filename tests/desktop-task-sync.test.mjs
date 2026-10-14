@@ -2,6 +2,23 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { saveTaskDone } from '../app/desktop/task-sync.mjs';
 
+test('desktop can complete the shared task without copying it or changing individual tasks', async () => {
+  const original=globalThis.fetch;
+  let document={revision:1,value:[{id:1,owner:'全员',done:false},{id:2,owner:'czl',done:false}]};
+  try {
+    globalThis.fetch=async(_url,options)=>{
+      if(options.method==='POST') {
+        const body=JSON.parse(options.body);
+        assert.equal(body.revision,1);
+        document={revision:2,value:body.value};
+      }
+      return Response.json({document});
+    };
+    const result=await saveTaskDone(1,true,new AbortController().signal);
+    assert.deepEqual(result.value,[{id:1,owner:'全员',done:true},{id:2,owner:'czl',done:false}]);
+  } finally {globalThis.fetch=original;}
+});
+
 test('desktop completion never recreates a deleted or reassigned task, or writes malformed data', async () => {
   const original=globalThis.fetch;
   try {
