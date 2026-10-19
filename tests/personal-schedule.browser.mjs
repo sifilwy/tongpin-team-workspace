@@ -82,6 +82,7 @@ try {
     };
   });
   await page.addScriptTag({ content: output.find(item => item.type === 'chunk').code });
+  if (!process.env.MOBILE_ONLY) {
   const owners = ['xzx', '吃吃', 'czl', '子涵', '悦悦'];
   await page.locator('.personal-segment button').first().waitFor();
   assert.deepEqual(await page.locator('.personal-segment button').allTextContents(), owners);
@@ -778,4 +779,45 @@ try {
   assert.equal(await page.locator('[data-shared-task]').count(), 1);
   assert.equal(await page.locator('.personal-card').filter({hasText:'全员待安排测试'}).count(), 3);
   console.log('PASS: dragging keeps shared membership, shared pending task and recurrence remain shared after remount');
+  }
+  await page.clock.setSystemTime(new Date(2026,8,11,12,0));
+  for (const css of ['globals.css','overview-actions.css','personal-schedule-v2.css','personal-schedule-fixes.css','weekly-plan.css','components/personality.css','components/daily-review.css','mobile-app.css']) {
+    await page.addStyleTag({content:readFileSync(new URL('../app/'+css,import.meta.url),'utf8').replace('@import "tailwindcss";','')});
+  }
+  for (const width of [375,390,430]) {
+    await page.setViewportSize({width,height:844});
+    await page.evaluate(() => {
+      window.fetch=async()=>Response.json({document:{revision:1,value:{}}});
+      window.fixture['tongpin-personal-tasks-v3']=[{id:12001,title:'手机日程：准备团队会议',owner:'全员',category:'全员日程',due:'2026-09-11',done:false,note:'带上本周计划',startTime:'09:00',endTime:'10:00'}];
+      window.renderWorkspace();
+    });
+    await page.locator('.nav-links').waitFor();
+    assert.equal(await page.getByRole('button',{name:'人格改变',exact:true}).count(),0);
+    assert.equal(await page.locator('.nav-links button').count(),4);
+    assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true,'Overview overflow at '+width);
+    await page.getByRole('button',{name:'个人日程',exact:true}).click();
+    await page.waitForFunction(()=>document.querySelector('.personal-view-select').value==='1');
+    assert.equal(await page.locator('.personal-date').count(),1);
+    assert.equal(await page.locator('.personal-categories').isVisible(),false);
+    assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true,'Schedule overflow at '+width);
+    await page.locator('.mobile-task-toggle').click();
+    assert.equal(await page.locator('.personal-categories').isVisible(),true);
+    await page.locator('.mobile-task-toggle').click();
+    await page.locator('[data-schedule-id="12001"]').click();
+    await page.locator('.mobile-edit-actions').getByRole('button',{name:'标记完成',exact:true}).click();
+    assert.equal(await page.evaluate(()=>window.fixture['tongpin-personal-tasks-v3'][0].done),true);
+    await page.locator('[data-schedule-id="12001"]').click();
+    assert.equal(await page.locator('input[name=title]').evaluate(el=>getComputedStyle(el).fontSize),'16px');
+    await page.locator('.personal-edit-modal>header button').click();
+    if(width===390) await page.screenshot({path:fileURLToPath(new URL('../work/mobile-schedule.png',import.meta.url)),fullPage:true});
+    await page.getByRole('button',{name:'计划',exact:true}).click();
+    await page.getByRole('dialog',{name:'每周计划',exact:true}).waitFor();
+    assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true,'Plan overflow at '+width);
+    await page.getByRole('button',{name:'关闭计划',exact:true}).click();
+    await page.getByRole('button',{name:'总结复盘',exact:true}).click();
+    await page.locator('#daily-text').waitFor();
+    assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true,'Review overflow at '+width);
+    if(width===390) await page.screenshot({path:fileURLToPath(new URL('../work/mobile-review.png',import.meta.url)),fullPage:true});
+  }
+  console.log('PASS: 375/390/430px mobile navigation, no personality entry, single-day calendar, collapsible tasks, touch completion, legible inputs, plan/review fit');
 } finally { await browser.close(); }

@@ -10,7 +10,7 @@ import { AssistantPicker } from "./components/TaskExtras";
 import PersonalSchedule from "./components/PersonalSchedule";
 import ScheduleBoundary from "./components/ScheduleBoundary";
 import DesktopWidgetButton from "./components/DesktopWidgetButton";
-import PersonalityPage from "./components/PersonalityPage";
+
 
 import DailyReview from "./components/DailyReview";
 import { categories, members, NOTION_COLLAB_URL, Category, Message, Status, Task, TaskNote, View } from "./lib/model";
@@ -26,6 +26,7 @@ import "./personal-schedule-fixes.css";
 
 import "./task-amount.css";
 import "./life-category.css";
+import "./mobile-app.css";
 
 const today = new Date();
 const iso = (date: Date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
@@ -228,7 +229,7 @@ export default function Page() {
   }
 
   function navigate(next: View) {
-    if (next === "personality" && member !== "xzx") return;
+
     setView(next);
     if (next === "overview") { setShowCompleted(false); setCompletedTaskId(null); }
   }
@@ -259,8 +260,8 @@ export default function Page() {
   return <main className="app-shell">
     <nav className="main-nav">
       <button className="brand" onClick={() => navigate("overview")}><span>同</span><strong>同频工作台</strong></button>
-      <div className="nav-links">{([["overview", "协作总览"], ["timeline", "任务时间线"], ["review", "总结复盘"], ["personal", "个人日程"], ...(member === "xzx" ? [["personality", "人格改变"]] : [])] as [View, string][]).map(([id, label]) => <button key={id} className={view === id ? "active" : ""} onClick={() => navigate(id)}>{label}</button>)}</div>
-      {view !== "personal" && view !== "personality" && view !== "review" && <button className="create-button" onClick={() => setShowNew(true)}>＋ 新建任务</button>}
+      <div className="nav-links">{([["overview", "协作总览"], ["timeline", "任务时间线"], ["review", "总结复盘"], ["personal", "个人日程"]] as [View, string][]).map(([id, label]) => <button key={id} className={view === id ? "active" : ""} aria-current={view === id ? "page" : undefined} onClick={() => navigate(id)}><svg className="mobile-nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true"><path d={id === "overview" ? "M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h7v7h-7z" : id === "timeline" ? "M5 3v18M10 6h11M10 12h8M10 18h10" : id === "review" ? "M5 3h14v18H5zM8 8h8M8 12h8M8 16h5" : "M4 5h16v16H4zM8 2v6M16 2v6M4 10h16"}/></svg>{label}</button>)}</div>
+      {view !== "personal" && view !== "review" && <button className="create-button" onClick={() => setShowNew(true)}>＋ 新建任务</button>}
       {view === "personal" && <DesktopWidgetButton />}
     </nav>
 
@@ -300,7 +301,7 @@ export default function Page() {
               dragging={dragTaskId === task.id}
               overdue={task.status !== "已完成" && task.due < iso(currentNow)}
               dropPosition={dragOverKey === `timeline-before-${task.id}` ? "before" : dragOverKey === `timeline-after-${task.id}` ? "after" : null}
-              onClick={() => setSelectedId(task.id)}
+              onClick={() => { setSelectedId(task.id); if (window.matchMedia("(max-width: 700px)").matches) setEditTaskId(task.id); }}
               onContextMenu={showTaskMenu}
               onDragStart={startDragging}
               onDragEnd={finishDragging}
@@ -328,7 +329,7 @@ export default function Page() {
     <DailyReview active={view === "review"} />
 
     {view === "personal" && <ScheduleBoundary><PersonalSchedule /></ScheduleBoundary>}
-    {member === "xzx" && <PersonalityPage active={view === "personality"} />}
+
 
     {taskMenu && tasks.find((task) => task.id === taskMenu.taskId) && (() => { const task = tasks.find((item) => item.id === taskMenu.taskId)!; return <div className="task-context-menu" role="menu" style={{ left: taskMenu.x, top: taskMenu.y }} onPointerDown={(event) => event.stopPropagation()} onContextMenu={(event) => event.preventDefault()}><div><strong>{task.title}</strong><span>{task.owner} · {task.category}</span></div>{task.status !== "已完成" && <button onClick={() => completeTask(task.id)}><b>✓</b><span>标记完成<small>进入总览的已完成任务</small></span></button>}<button onClick={() => setEditTaskId(task.id)}><b>✎</b><span>编辑任务<small>负责人、日期与分类</small></span></button>{task.status !== "已完成" && task.owner !== "待分配" && <button className="menu-secondary" onClick={() => moveTask(task.id, "待分配")}><b>↩</b><span>退回待安排<small>取消当前负责人</small></span></button>}<button className="menu-danger" onClick={() => deleteTask(task.id)}><b>×</b><span>删除任务<small>删除后无法恢复</small></span></button></div>; })()}
     {showNew && <div className="modal-layer"><form className="task-modal" onSubmit={createTask}><div className="modal-title"><div><strong>新建任务</strong><span>创建后进入待安排，也可以直接指定负责人</span></div><button type="button" onClick={() => setShowNew(false)}>×</button></div><label>任务名称<input name="title" autoFocus required placeholder="输入一件需要协作的事" /></label><div className="form-row"><label>负责人<select name="owner" defaultValue={member}><option>待分配</option>{members.map(member => <option key={member.name}>{member.name}</option>)}</select></label><label>任务分类<select name="category">{categories.map(category => <option key={category}>{category}</option>)}</select></label></div><AssistantPicker /><div className="form-row"><label>计划日期<input name="due" type="date" defaultValue={iso(new Date())} required /></label></div><label>补充说明<textarea name="description" placeholder="说明结果、配合方式或注意事项" /></label><label>Notion 任务笔记<input name="notionUrl" type="url" placeholder="粘贴团队共享的 Notion 页面链接" /></label><button className="modal-submit">创建任务</button></form></div>}

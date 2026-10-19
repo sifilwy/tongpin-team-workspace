@@ -1,0 +1,63 @@
+.mobile-nav-icon,.mobile-task-toggle,.mobile-edit-actions{display:none!important}
+@media(max-width:700px){
+  html{-webkit-text-size-adjust:100%;scroll-padding-bottom:90px}
+  body{background:#f5f4fa;overflow-wrap:anywhere}
+  .app-shell{padding-bottom:calc(78px + env(safe-area-inset-bottom));min-height:100dvh}
+  button,a,input,select,textarea{-webkit-tap-highlight-color:transparent}
+  button{touch-action:manipulation}
+  input,select,textarea{font-size:16px!important;max-width:100%;min-width:0}
+  .main-nav{height:calc(56px + env(safe-area-inset-top));padding:env(safe-area-inset-top) 16px 0;gap:10px;background:#f5f4fa;border:0;z-index:20}
+  .brand strong{display:block;font-size:16px}.brand span{width:30px;height:30px}
+  .main-nav>.create-button,.main-nav>.desktop-install-button{display:none}
+  .team-identity{top:calc(10px + env(safe-area-inset-top));right:12px;bottom:auto;left:auto;padding:4px 8px;background:transparent;border:0;box-shadow:none;z-index:21;font-size:12px;gap:6px}
+  .team-identity button{min-height:36px;padding:6px}
+  .nav-links{position:fixed;left:0;right:0;bottom:0;height:calc(66px + env(safe-area-inset-bottom));padding:4px 6px env(safe-area-inset-bottom);display:grid;grid-template-columns:repeat(4,minmax(0,1fr));border-top:1px solid #e7e4f0;background:rgba(255,255,255,.97);backdrop-filter:blur(16px);z-index:25}
+  .nav-links button{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;padding:6px 2px;font-size:11px;white-space:nowrap;border-radius:12px;min-height:52px}
+  .nav-links button.active{box-shadow:none;background:#f2efff;color:#6856d5}
+  .mobile-nav-icon{display:block!important;width:22px;height:22px}
+  .overview-page{display:flex!important;flex-direction:column;padding:8px 12px;gap:12px}
+  .overview-page>.surface{width:100%;min-width:0;margin:0;padding:16px;border-radius:18px;box-shadow:none}
+  .overview-page>.member-panel{order:0}.overview-page>.focus-panel{order:1}.overview-page>.activity-panel{order:2}.overview-page>.overview-create-row{order:3;width:100%;margin:0}
+  .member-panel .member-item{min-height:48px}.category-board{grid-template-columns:1fr!important}
+  .task-row,.category-task,.member-task{min-height:48px}.task-row strong,.category-task strong{font-size:14px}
+  .overview-create-row button,.queue-header>button{min-height:44px}
+  .timeline-page{display:flex!important;flex-direction:column;height:auto;min-width:0}
+  .week-board{order:0;max-width:100%;padding:12px;overflow-x:auto}.task-library{order:1;max-height:340px;overflow-y:auto}.task-detail{order:2;padding:16px}
+  .week-toolbar{gap:10px;flex-wrap:wrap}.week-toolbar button{min-height:44px}.days-grid{min-width:980px}.calendar-card strong{font-size:14px}.calendar-card small{font-size:12px}
+  .filter-stack{display:flex;overflow:auto;gap:6px}.filter-stack button{flex-shrink:0;gap:8px;min-height:44px}
+  .personal-v2{display:block!important;height:auto!important;min-height:0!important;overflow:visible;background:#f5f4fa}
+  .personal-sidebar{padding:8px 12px;border:0;background:transparent;overflow:visible}
+  .personal-segment{padding:4px;background:#eae6f5}.personal-segment button{font-size:13px;min-height:42px}
+  .mobile-task-toggle{display:flex!important;align-items:center;justify-content:space-between;width:100%;min-height:44px;padding:8px 4px;background:transparent;border:0;color:#655780;font-size:13px}
+  .mobile-task-toggle span{color:#8c8497;font-size:12px}
+  .personal-sidebar:not(.mobile-tasks-open) .personal-side-title,.personal-sidebar:not(.mobile-tasks-open) .personal-categories{display:none!important}
+  .personal-sidebar.mobile-tasks-open .personal-categories{max-height:45dvh;overflow-y:auto;overscroll-behavior:contain}
+  .personal-side-title{margin-top:4px}.personal-side-title span{display:none}
+  .personal-categories button{min-height:40px}.personal-pending-list button strong{font-size:14px!important}.personal-pending-list button small{font-size:12px!important}
+  .personal-category-rename{opacity:1}.personal-category-row{grid-template-columns:minmax(0,1fr) 36px 36px 44px}
+  .personal-main{padding:0 12px 12px;background:transparent;min-height:0!important;overflow:visible}
+  .personal-topbar{gap:10px;margin-bottom:10px}.personal-topbar>div:first-child{display:flex;gap:8px;align-items:center}.personal-topbar>div:first-child span{font-size:12px}.personal-topbar>div:first-child strong{font-size:17px}
+  .personal-top-actions{display:flex;flex-wrap:wrap;justify-content:flex-start!important;gap:6px;width:100%}
+  .personal-top-actions>button,.personal-week-switch button{min-height:42px;font-size:13px;padding:8px 10px;border-radius:10px}
+  .personal-view-select{min-height:42px;max-width:108px}.personal-week-switch{margin-left:auto}.personal-week-switch button{min-width:42px}
+  .personal-timeline-shell{height:calc(100dvh - 340px);min-height:320px!important;max-height:700px;display:grid;flex:none;grid-template-columns:42px minmax(0,1fr);overflow:auto!important;overscroll-behavior:contain;border-radius:16px}
+  .personal-calendar{min-width:calc(var(--calendar-days,1)*145px)}
+  .personal-date>header span,.personal-date>header b{font-size:13px}.personal-time-axis span{font-size:10px}
+  .personal-card{touch-action:pan-x pan-y!important;padding:5px 8px}.personal-card strong{font-size:13px!important}.personal-card time,.personal-card small{font-size:11px!important}.personal-card-summary{font-size:13px!important}
+  .personal-pending-list button{touch-action:pan-y!important}.personal-resize-handle{display:none}
+  @container personal-event (max-height:55px){.personal-card small{display:none}}
+  .personal-completed-grid{grid-template-columns:1fr!important}.personal-completed-grid>button{min-height:60px}
+  .modal-layer,.personal-modal-bg{padding:12px 8px calc(8px + env(safe-area-inset-bottom));align-items:end;z-index:60;overflow:auto}
+  .task-modal,.personal-edit-modal{width:100%;max-height:calc(100dvh - 24px - env(safe-area-inset-top));overflow-y:auto;overscroll-behavior:contain;padding:20px 16px;border-radius:22px 22px 14px 14px}
+  .task-modal label,.personal-edit-modal label{font-size:13px}.task-modal input,.personal-edit-modal input,.personal-edit-modal select{min-height:46px}
+  .task-modal textarea,.personal-edit-modal textarea{min-height:100px}.modal-submit,.personal-edit-modal .save{min-height:48px;font-size:16px;border-radius:12px}
+  .personal-edit-modal>header button,.modal-title button{min-width:44px;min-height:44px}.personal-edit-modal>header strong{font-size:18px}
+  .mobile-edit-actions{display:grid!important;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px}.mobile-edit-actions button{min-height:44px;border:1px solid #e5e0ed;border-radius:10px;background:#f7f5fb;color:#655780}.mobile-edit-actions .danger{color:#b35160;background:#fff5f5}
+  .personal-overnight-hint,.personal-edit-modal label>small{font-size:12px}
+  .weekly-plan-dialog{width:calc(100vw - 16px);max-height:calc(100dvh - 24px);border-radius:20px}.weekly-plan-dialog form{max-height:calc(100dvh - 26px)}
+  .weekly-plan-dialog button{min-height:40px}.weekly-plan-body{padding:16px}.weekly-plan-tabs button{padding:6px 0;min-width:0}.weekly-plan-dialog textarea{font-size:16px;line-height:1.7}
+  .daily-review{padding:12px!important;margin:0!important}.daily-review .personality-heading{margin-bottom:16px}.daily-review h1{font-size:23px}.daily-review .personality-card{padding:16px;border-radius:18px}.daily-review .personality-card textarea{min-height:260px;font-size:16px;line-height:1.8}
+  .daily-review button{min-height:44px}.daily-review .personality-save-row{gap:8px;flex-wrap:wrap}.daily-review .personality-record{padding:16px}.daily-review .personality-card-heading{gap:8px}
+  .sync-notice{left:12px;right:12px;bottom:calc(78px + env(safe-area-inset-bottom));font-size:13px}
+  .team-access{min-height:100dvh;padding:20px}.team-access form{width:100%;padding:26px;border-radius:22px}
+}
