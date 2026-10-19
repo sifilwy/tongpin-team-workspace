@@ -151,8 +151,6 @@ export default function PersonalSchedule() {
   const [dragPreview, setDragPreview] = useState<{ due: string; startTime: string; endTime: string } | null>(null);
   const dragPreviewRef = useRef<{ due: string; startTime: string; endTime: string } | null>(null);
   const tasksRef = useRef<PersonalTask[]>(starterTasks);
-  const edgeHover = useRef<{ direction: -1 | 0 | 1; since: number }>({ direction: 0, since: 0 });
-  const edgeTimer = useRef<number | null>(null);
   const dragOffsetY = useRef(0);
   const pointerDrag = useRef<{ id: number; pointerId: number; startX: number; startY: number; active: boolean; edge?: "start" | "end"; track?: HTMLElement; originalStart?: number; originalEnd?: number } | null>(null);
   const suppressClick = useRef(false);
@@ -183,9 +181,6 @@ export default function PersonalSchedule() {
       window.removeEventListener("blur", cancel);
     };
   }, [allView, dragPreview, owner, tasks]);
-  useEffect(() => () => {
-    if (edgeTimer.current !== null) window.clearTimeout(edgeTimer.current);
-  }, []);
 
   const now = clockNow;
   const dates = calendarDates(now,viewDays,weekOffset);
@@ -295,23 +290,7 @@ export default function PersonalSchedule() {
     if(fromEditor) {setEditing(null);setNewDefaults(null);}
   }
 
-  function cancelEdgeHover() {
-    if (edgeTimer.current !== null) window.clearTimeout(edgeTimer.current);
-    edgeTimer.current = null;
-    edgeHover.current = { direction: 0, since: 0 };
-  }
-
-  function endDrag() { setDragId(null); setDropKey(null); dragPreviewRef.current = null; setDragPreview(null); dragOffsetY.current = 0; cancelEdgeHover(); window.setTimeout(() => { suppressClick.current = false; }, 0); }
-  function hoverEdge(direction: -1 | 1) {
-    if (edgeHover.current.direction === direction) return;
-    cancelEdgeHover();
-    edgeHover.current = { direction, since: Date.now() };
-    setWeekOffset((value) => value + direction);
-    edgeTimer.current = window.setTimeout(() => {
-      edgeTimer.current = null;
-      if (edgeHover.current.direction === direction) edgeHover.current = { direction: 0, since: 0 };
-    }, 720);
-  }
+  function endDrag() { setDragId(null); setDropKey(null); dragPreviewRef.current = null; setDragPreview(null); dragOffsetY.current = 0; window.setTimeout(() => { suppressClick.current = false; }, 0); }
 
   function scheduleTaskAt(id: number, due: string, startTime: string) {
     const task = tasks.find((item) => item.id === id);
@@ -371,10 +350,7 @@ export default function PersonalSchedule() {
       dragPreviewRef.current = preview; setDragPreview(preview); setDropKey(preview.due);
       return;
     }
-    const mainBounds = document.querySelector<HTMLElement>(".personal-main")?.getBoundingClientRect();
-    if (mainBounds && event.clientX >= mainBounds.left && event.clientX < mainBounds.left + 32) hoverEdge(-1);
-    else if (mainBounds && event.clientX > mainBounds.right - 32) hoverEdge(1);
-    else cancelEdgeHover();
+    // Moving near the calendar edge must never change the displayed dates.
     const timeline = document.querySelector<HTMLElement>(".personal-timeline-shell");
     if (timeline) {
       const timelineBounds = timeline.getBoundingClientRect();
@@ -555,7 +531,7 @@ export default function PersonalSchedule() {
       <header className="personal-topbar"><div><span>{completedView ? "全部成员" : allView ? "全部成员" : owner}</span><strong>{completedView ? "已完成任务" : `${dates[0].getFullYear()}年${String(dates[0].getMonth() + 1).padStart(2, "0")}月`}</strong></div><div className="personal-top-actions"><button className={`all-view-button ${allView ? "active" : ""}`} onClick={() => { if (allView) { setAllView(false); setCompletedView(false); } else setAllView(true); }}>{allView ? "返回我的日程" : "查看全员"}</button>{allView && <button className={`personal-completed-button ${completedView ? "active" : ""}`} onClick={() => setCompletedView((value) => !value)}>已完成 <b>{completedTasks.length}</b></button>}<button type="button" className="personal-plan-button" onClick={()=>setPlanContext({owner:allView ? member : owner,week:iso(weekStart)})}>计划</button><button className="personal-create" onClick={() => openNew({ owner: allView ? "xzx" : owner, due: iso(now) })}>＋ 添加</button>{!completedView && <><select className="personal-view-select" aria-label="日程显示范围" value={viewDays} onChange={event=>changeView(Number(event.target.value) as 1 | 3 | 4 | 7)}><option value={1}>单日</option><option value={7}>整周</option><option value={3}>近三天</option><option value={4}>近四天</option></select><div className="personal-week-switch"><button aria-label={viewDays===7 ? "上一周" : viewDays===1 ? "前一天" : `前${viewDays}天`} onClick={() => setWeekOffset((value) => value - 1)}>‹</button><button onClick={() => setWeekOffset(0)}>{viewDays===7 ? "本周" : "今天"}</button><button aria-label={viewDays===7 ? "下一周" : viewDays===1 ? "后一天" : `后${viewDays}天`} onClick={() => setWeekOffset((value) => value + 1)}>›</button></div></>}</div></header>
 
       {completedView ? <section className="personal-completed-view"><header><div><strong>全部已完成</strong><span>先集中放在这里，后续再细分</span></div><b>{completedTasks.length}</b></header><div className="personal-completed-grid">{completedTasks.map((task) => { const person = PEOPLE.find((item) => item.name === task.owner) || { name: "全员", color: "#7564d7" }; return <button key={task.id} onClick={() => clickTask(task)} onContextMenu={(event) => openMenu(event, task.id)}><i style={{ background: person.color }}>{task.owner[0]}</i><span><strong>{task.title}</strong><small>{task.owner} · {task.category} · {task.due?.replaceAll("-", "/") || "未安排"}</small></span><em>已完成</em></button>; })}</div></section> : <>
-      {dragId !== null && <><div className="personal-edge prev" /><div className="personal-edge next" /></>}
+
       <div className="personal-timeline-shell" style={{"--calendar-days":viewDays} as CSSProperties}>
         <aside className="personal-time-axis"><header /><div>{HOURS.map((hour) => <span key={hour} style={{ top: `${((hour * 60 - DAY_START) / (DAY_END - DAY_START)) * 100}%` }}>{hour>=24 ? "次日 " : ""}{String(hour%24).padStart(2, "0")}:00</span>)}</div></aside>
         <div className="personal-calendar">{dates.map((date) => {

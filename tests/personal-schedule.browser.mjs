@@ -779,6 +779,36 @@ try {
   assert.equal(await page.locator('[data-shared-task]').count(), 1);
   assert.equal(await page.locator('.personal-card').filter({hasText:'全员待安排测试'}).count(), 3);
   console.log('PASS: dragging keeps shared membership, shared pending task and recurrence remain shared after remount');
+  await page.clock.setSystemTime(new Date(2026,9,20,12,0));
+  await page.evaluate(() => {
+    window.fixture['tongpin-personal-tasks-v3']=[{id:13001,title:'边缘拖动日期回归',owner:'xzx',category:'独立',due:'2026-10-20',done:false,note:'',startTime:'09:00',endTime:'10:00'}];
+    window.renderSchedule();
+  });
+  await page.locator('[data-schedule-id="13001"]').waitFor();
+  for (const side of ['left','right']) {
+    const card=page.locator('[data-schedule-id="13001"]');
+    await card.scrollIntoViewIfNeeded();
+    const box=await card.boundingBox();
+    const main=await page.locator('.personal-main').boundingBox();
+    const x=side==='left'?main.x+10:main.x+main.width-10;
+    await page.mouse.move(box.x+box.width/2,box.y+box.height/2);
+    await page.mouse.down();
+    await page.mouse.move(x,box.y+box.height/2,{steps:8});
+    for(let tick=0;tick<3;tick++) {
+      await page.clock.fastForward(800);
+      await page.mouse.move(x,box.y+box.height/2+tick);
+      assert.equal(await page.locator('.personal-day-track').first().getAttribute('data-due'),'2026-10-19');
+    }
+    assert.equal(await page.evaluate(()=>window.fixture['tongpin-personal-tasks-v3'][0].due),'2026-10-20');
+    await page.keyboard.press('Escape');
+    await page.mouse.up();
+    assert.equal(await page.evaluate(()=>window.fixture['tongpin-personal-tasks-v3'][0].due),'2026-10-20');
+  }
+  await page.getByRole('button',{name:'上一周',exact:true}).click();
+  assert.equal(await page.locator('.personal-day-track').first().getAttribute('data-due'),'2026-10-12');
+  await page.getByRole('button',{name:'本周',exact:true}).click();
+  assert.equal(await page.locator('.personal-day-track').first().getAttribute('data-due'),'2026-10-19');
+  console.log('PASS: October 20 edge dragging never jumps to October 13/6, both edges stable after repeated dwell, Escape preserves date and explicit week controls work');
   }
   await page.clock.setSystemTime(new Date(2026,8,11,12,0));
   for (const css of ['globals.css','overview-actions.css','personal-schedule-v2.css','personal-schedule-fixes.css','weekly-plan.css','components/personality.css','components/daily-review.css','mobile-app.css']) {
