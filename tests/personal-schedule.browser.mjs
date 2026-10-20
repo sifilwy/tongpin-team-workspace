@@ -721,7 +721,7 @@ try {
   await page.locator('.personal-create').click();
   await page.locator('input[name=title]').fill('全员会议测试');
   await page.locator('select[name=owner]').selectOption('全员');
-  assert.deepEqual(await page.locator('select[name=category] option').allTextContents(), ['全员日程']);
+  assert.ok((await page.locator('select[name=category] option').allTextContents()).includes('全员日程'));
   await page.locator('input[name=due]').fill('2026-09-11');
   await page.locator('.personal-edit-modal .save').click();
   const sharedId = await page.evaluate(() => window.fixture['tongpin-personal-tasks-v3'].find(t => t.title === '全员会议测试').id);

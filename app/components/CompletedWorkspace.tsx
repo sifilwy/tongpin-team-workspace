@@ -1,7 +1,7 @@
 "use client";
 
 import { FormEvent, MouseEvent as ReactMouseEvent, useState } from "react";
-import { categories, members, Review, Task } from "../lib/model";
+import { taskCategories, members, Review, Task } from "../lib/model";
 import { useMember } from "./TeamAccess";
 
 type Props = {
@@ -22,6 +22,7 @@ const preciseTime = () => {
 };
 
 export default function CompletedWorkspace({ tasks, focusTaskId, onUpdateTask, onContextMenu, onExit }: Props) {
+  const categories = taskCategories(tasks);
   const [selectedTaskId, setSelectedTaskId] = useState<number | null>(null);
   const completed = tasks
     .filter((task) => task.status === "已完成")

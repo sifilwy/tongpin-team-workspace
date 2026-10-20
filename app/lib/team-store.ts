@@ -2,6 +2,7 @@ import { mkdirSync, existsSync, readFileSync, writeFileSync, renameSync } from "
 import { join } from "node:path";
 import { randomBytes, createHash } from "node:crypto";
 import { personalPalette } from "./personal-colors.mjs";
+import { TEAM_TASKS, PERSONAL_TASKS, initializeTaskSync, syncFromPersonal, syncFromTeam, writeSyncedDocuments } from "./task-sync.mjs";
 import { PERSONALITY_KEY, validPersonality } from "./personality-data.mjs";
 import { isWeeklyPlanKey, validWeekPlan } from "./weekly-plan.mjs";
 import { isDailyReviewKey, validDailyReview, dailyReviewKey, TEAM_DAILY_REVIEW_KEY } from "./daily-review.mjs";
@@ -43,6 +44,7 @@ export async function handleTeam(request: Request) {
     if (key === PERSONALITY_KEY && member !== "xzx") return reply({ error: "无权访问此内容" }, 403);
     if (isDailyReviewKey(key) && key !== TEAM_DAILY_REVIEW_KEY && key !== dailyReviewKey(member)) return reply({ error: "无权访问此内容" }, 403);
     if (key && !allowed.has(key) && !isWeeklyPlanKey(key) && !isDailyReviewKey(key)) return reply({ error: "未知数据类型" }, 400);
+    if ((key === TEAM_TASKS || key === PERSONAL_TASKS) && initializeTaskSync(state)) save(state);
     return reply(key ? { member, document: state.documents[key] || null } : { member });
   }
   const raw = await request.text();
@@ -71,6 +73,7 @@ export async function handleTeam(request: Request) {
   if (!allowed.has(body.key) && !isWeeklyPlanKey(body.key) && !isDailyReviewKey(body.key)) return reply({ error: "未知数据类型" }, 400);
   if (isDailyReviewKey(body.key) && body.key !== TEAM_DAILY_REVIEW_KEY && body.key !== dailyReviewKey(member)) return reply({ error: "无权访问此内容" }, 403);
   if (body.key === PERSONALITY_KEY && member !== "xzx") return reply({ error: "无权访问此内容" }, 403);
+  if ((body.key === TEAM_TASKS || body.key === PERSONAL_TASKS) && initializeTaskSync(state)) save(state);
   const previous = state.documents[body.key];
   if ((previous?.revision || 0) !== body.revision) return reply({ error: "另一位成员已更新，请刷新后重试", document: previous }, 409);
   const isColors = body.key === "tongpin-personal-category-colors-v1";
@@ -112,6 +115,9 @@ export async function handleTeam(request: Request) {
     }
   }
   const document = { revision: (previous?.revision || 0) + 1, value: body.value };
-  state.documents[body.key] = document; save(state);
-  return reply({ member, document });
+  state.documents[body.key] = document;
+  if (body.key === TEAM_TASKS) writeSyncedDocuments(state, syncFromTeam(previous?.value || [], body.value, state.documents[PERSONAL_TASKS]?.value || []));
+  if (body.key === PERSONAL_TASKS) writeSyncedDocuments(state, syncFromPersonal(previous?.value || [], body.value, state.documents[TEAM_TASKS]?.value || [], member));
+  save(state);
+  return reply({ member, document: state.documents[body.key] });
 }

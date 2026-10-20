@@ -1,6 +1,6 @@
 export type View = "overview" | "timeline" | "review" | "personal";
 export type Status = "待完成" | "进行中" | "已完成";
-export type Category = "运营" | "销售" | "交付" | "生活";
+export type Category = string;
 export type Review = { id: number; author: string; text: string; createdAt: string };
 export type TaskNote = { id: number; author: string; text: string; createdAt: string };
 export type Task = {
@@ -35,3 +35,5 @@ export const members = [
 ];
 
 export const categories: Category[] = ["运营", "销售", "交付", "生活"];
+export const taskCategories = (tasks: Task[]) => [...new Set([...categories, ...tasks.map(task=>task.category).filter(name=>name && name!=="独立")])];
+export const taskMembers = [...members, {name:"全员",role:"共同日程",color:"#7564d7"}];
